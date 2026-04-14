@@ -51,6 +51,10 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices", methods=["GET"])
 def list_devices(req: func.HttpRequest) -> func.HttpResponse:
+    accept_header = (req.headers.get("accept") or "").lower()
+    if "text/html" in accept_header:
+        return index(req)
+
     payload = {
         "status": "ok",
         "count": len(_DEVICES),
