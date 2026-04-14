@@ -3,16 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Huerta Function Check</title>
+  <title>Huerta ESP32 Dashboard</title>
   <style>
     :root {
-      --bg: #f3f7ef;
-      --card: #ffffff;
-      --text: #1c2a1f;
-      --accent: #2f9e44;
-      --muted: #5f6f62;
-      --danger: #c92a2a;
-      --ok: #2b8a3e;
+      --bg: #f1efe8;
+      --panel: #fffdf8;
+      --ink: #25231d;
+      --muted: #6a6659;
+      --line: #ded8c9;
+      --accent: #0d9488;
+      --danger: #b42318;
+      --ok: #1f7a3d;
+      --chip: #ece8db;
     }
 
     * {
@@ -22,125 +24,324 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Avenir Next", "Segoe UI", sans-serif;
-      color: var(--text);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--ink);
       background:
-        radial-gradient(circle at 15% 20%, #d8f3dc 0%, transparent 30%),
-        radial-gradient(circle at 85% 80%, #cdeac0 0%, transparent 35%),
+        radial-gradient(circle at 80% 0%, #d8efe6 0%, transparent 35%),
+        radial-gradient(circle at 10% 100%, #f4e3cc 0%, transparent 35%),
         var(--bg);
-      display: grid;
-      place-items: center;
-      padding: 24px;
+      padding: 28px;
     }
 
-    .card {
-      width: min(680px, 100%);
-      background: var(--card);
-      border-radius: 18px;
-      box-shadow: 0 14px 50px rgba(20, 45, 23, 0.14);
-      padding: 28px;
-      border: 1px solid #e2ebde;
+    .wrap {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      margin-bottom: 18px;
+      animation: rise 0.45s ease-out;
     }
 
     h1 {
-      margin: 0 0 8px;
-      font-size: clamp(1.5rem, 2.8vw, 2.2rem);
+      margin: 0;
+      font-size: clamp(1.5rem, 3.4vw, 2.6rem);
       letter-spacing: 0.02em;
     }
 
-    p {
-      margin: 0 0 20px;
+    .subtitle {
+      margin: 8px 0 0;
       color: var(--muted);
-      line-height: 1.45;
     }
 
-    .status {
+    .topbar {
       display: flex;
+      gap: 10px;
       align-items: center;
-      gap: 12px;
-      font-size: clamp(1.1rem, 2vw, 1.4rem);
-      font-weight: 700;
-      padding: 14px 16px;
-      border-radius: 12px;
-      background: #eef8ef;
-      border: 1px solid #dbefdd;
-      margin-bottom: 16px;
+      justify-content: space-between;
+      margin-bottom: 14px;
     }
 
-    .dot {
-      width: 13px;
-      height: 13px;
+    .badge {
+      background: var(--chip);
+      border: 1px solid var(--line);
       border-radius: 999px;
-      background: var(--accent);
-      box-shadow: 0 0 0 0 rgba(47, 158, 68, 0.55);
-      animation: pulse 1.8s infinite;
+      padding: 6px 10px;
+      font-size: 0.85rem;
     }
 
-    .meta {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.92rem;
-      background: #f7faf5;
-      border: 1px solid #e4ecdf;
-      border-radius: 10px;
-      padding: 12px;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      line-height: 1.35;
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(36, 34, 29, 0.08);
+      overflow: hidden;
+      animation: rise 0.55s ease-out;
     }
 
-    .fail {
-      color: var(--danger);
-      background: #fff5f5;
-      border-color: #ffd8d8;
+    table {
+      width: 100%;
+      border-collapse: collapse;
     }
 
-    .ok {
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #ece7db;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f7f3e8;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #656050;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.85rem;
+      border: 1px solid transparent;
+      background: #f5f5f3;
+    }
+
+    .chip.online {
       color: var(--ok);
+      background: #ebf8ef;
+      border-color: #ccebd5;
     }
 
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(47, 158, 68, 0.6); }
-      70% { box-shadow: 0 0 0 12px rgba(47, 158, 68, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(47, 158, 68, 0); }
+    .chip.offline {
+      color: var(--danger);
+      background: #fff3f2;
+      border-color: #ffd9d6;
+    }
+
+    .chip.restarting {
+      color: #855b00;
+      background: #fff7e8;
+      border-color: #ffe3b3;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      border-radius: 9px;
+      padding: 7px 11px;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: #b6b09d;
+    }
+
+    .log {
+      margin-top: 14px;
+      padding: 12px;
+      background: #1d1f21;
+      color: #f6f8fa;
+      border-radius: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85rem;
+      min-height: 56px;
+      white-space: pre-wrap;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 850px) {
+      body {
+        padding: 14px;
+      }
+
+      table,
+      thead,
+      tbody,
+      tr,
+      th,
+      td {
+        display: block;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tr {
+        border-bottom: 1px solid #ece7db;
+        padding: 8px 0;
+      }
+
+      td {
+        border-bottom: none;
+        padding: 6px 14px;
+      }
     }
   </style>
 </head>
 <body>
-  <main class="card">
-    <h1>Huerta Azure Function</h1>
-    <p>Diese Seite ruft den Health-Endpunkt der Function auf. Wenn unten ok erscheint, ist die Function live erreichbar.</p>
-    <section id="statusBox" class="status">
-      <span class="dot" aria-hidden="true"></span>
-      <span id="statusText">Pruefe Verbindung...</span>
+  <main class="wrap">
+    <section class="hero">
+      <h1>Huerta ESP32 Dashboard</h1>
+      <p class="subtitle">Lokale Verwaltung ohne Datenbank. Cosmos kann spaeter darunter gehangen werden.</p>
     </section>
-    <pre id="details" class="meta">warte auf Antwort...</pre>
+
+    <section class="topbar">
+      <span id="deviceCount" class="badge">Lade Geraete...</span>
+      <button id="reloadBtn" type="button">Neu laden</button>
+    </section>
+
+    <section class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Geraet</th>
+            <th>Status</th>
+            <th>Firmware</th>
+            <th>IP</th>
+            <th>Letztes Signal</th>
+            <th>Bewaesserung</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="deviceTable">
+          <tr><td colspan="7">Lade Daten...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <pre id="log" class="log">Bereit.</pre>
   </main>
 
   <script>
-    async function checkHealth() {
-      const statusBox = document.getElementById("statusBox");
-      const statusText = document.getElementById("statusText");
-      const details = document.getElementById("details");
+    const tableBody = document.getElementById("deviceTable");
+    const countBadge = document.getElementById("deviceCount");
+    const reloadBtn = document.getElementById("reloadBtn");
+    const logBox = document.getElementById("log");
+
+    function log(message) {
+      const ts = new Date().toLocaleTimeString("de-DE");
+      logBox.textContent = `[${ts}] ${message}`;
+    }
+
+    function statusChip(status) {
+      const safe = String(status || "unknown");
+      return `<span class="chip ${safe}">${safe}</span>`;
+    }
+
+    async function loadDevices() {
+      tableBody.innerHTML = `<tr><td colspan="7">Lade Daten...</td></tr>`;
 
       try {
-        const response = await fetch("/health", { method: "GET" });
+        const response = await fetch("/devices", { method: "GET" });
         const data = await response.json();
-
-        if (!response.ok || data.status !== "ok") {
-          throw new Error("Ungueltige Antwort");
+        if (!response.ok) {
+          throw new Error(data.message || "API Fehler");
         }
 
-        statusText.textContent = "ok - Function erreichbar";
-        statusText.classList.add("ok");
-        details.textContent = JSON.stringify(data, null, 2);
+        const devices = Array.isArray(data.devices) ? data.devices : [];
+        countBadge.textContent = `${devices.length} Geraete verbunden`;
+
+        if (devices.length === 0) {
+          tableBody.innerHTML = `<tr><td colspan="7">Keine Geraete vorhanden.</td></tr>`;
+          return;
+        }
+
+        tableBody.innerHTML = devices.map((d) => `
+          <tr>
+            <td><strong>${d.name || d.id}</strong><br><small>${d.id}</small></td>
+            <td>${statusChip(d.status)}</td>
+            <td>${d.firmware || "-"}</td>
+            <td>${d.ip || "-"}</td>
+            <td>${d.last_seen_utc || "-"}</td>
+            <td>${d.watering_enabled ? "aktiv" : "aus"}</td>
+            <td>
+              <div class="actions">
+                <button type="button" data-action="restart" data-device="${d.id}">Restart</button>
+                <button type="button" data-action="set_watering_on" data-device="${d.id}">Water ON</button>
+                <button type="button" data-action="set_watering_off" data-device="${d.id}">Water OFF</button>
+              </div>
+            </td>
+          </tr>
+        `).join("");
+
+        log("Geraeteliste erfolgreich geladen.");
       } catch (error) {
-        statusBox.classList.add("fail");
-        statusText.textContent = "Fehler - Function nicht erreichbar";
-        details.textContent = String(error);
+        tableBody.innerHTML = `<tr><td colspan="7">Fehler beim Laden: ${String(error)}</td></tr>`;
+        countBadge.textContent = "Fehler";
+        log(`Fehler: ${String(error)}`);
       }
     }
 
-    checkHealth();
+    async function sendAction(deviceId, action) {
+      let body;
+      if (action === "restart") {
+        body = { action: "restart" };
+      } else if (action === "set_watering_on") {
+        body = { action: "set_watering", enabled: true };
+      } else if (action === "set_watering_off") {
+        body = { action: "set_watering", enabled: false };
+      } else {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/devices/${deviceId}/action`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Aktion fehlgeschlagen");
+        }
+        log(`Aktion '${body.action}' fuer ${deviceId} erfolgreich.`);
+        await loadDevices();
+      } catch (error) {
+        log(`Aktion fehlgeschlagen: ${String(error)}`);
+      }
+    }
+
+    tableBody.addEventListener("click", async (event) => {
+      const btn = event.target.closest("button[data-action]");
+      if (!btn) {
+        return;
+      }
+
+      const deviceId = btn.getAttribute("data-device");
+      const action = btn.getAttribute("data-action");
+      if (!deviceId || !action) {
+        return;
+      }
+      await sendAction(deviceId, action);
+    });
+
+    reloadBtn.addEventListener("click", loadDevices);
+
+    loadDevices();
   </script>
 </body>
 </html>
