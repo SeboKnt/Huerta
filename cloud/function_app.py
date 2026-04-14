@@ -58,7 +58,7 @@ def _ensure_terminal_fields(item: dict) -> None:
 
 def _compute_device_auth_hash(device_id: str) -> str:
     if not _DEVICE_TOKEN_SECRET:
-        raise RuntimeError("missing DEVICE_TOKEN_SECRET")
+        raise RuntimeError("missing DEVICE_TOKEN_SECRET (set this in Function App environment settings)")
     return hmac.new(
         _DEVICE_TOKEN_SECRET.encode("utf-8"),
         device_id.encode("utf-8"),
@@ -268,6 +268,27 @@ def update_device(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
+
+
+@app.route(route="devices/{device_id}", methods=["DELETE"])
+def delete_device(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+
+    try:
+        container = _get_container_client()
+        container.delete_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to delete device: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response({"status": "ok", "deleted": True, "device_id": device_id}, status_code=200)
 
 
 @app.route(route="devices/{device_id}/action", methods=["POST"])
@@ -584,7 +605,17 @@ def add_device(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400,
         )
 
+    # Accept serial_number as primary onboarding field. id remains supported for compatibility.
+    serial_number = body.get("serial_number", "")
+    if isinstance(serial_number, str):
+        serial_number = serial_number.strip()
+    else:
+        serial_number = ""
+
     device_id = body.get("id", "").strip()
+    if not device_id and serial_number:
+        device_id = serial_number
+
     device_name = body.get("name", "").strip()
 
     if not device_id or not device_name:
