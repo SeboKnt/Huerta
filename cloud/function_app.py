@@ -139,6 +139,7 @@ def _to_device_response(item: dict) -> dict:
         "ip": item.get("ip", "0.0.0.0"),
         "last_seen_utc": item.get("last_seen_utc", ""),
         "watering_enabled": bool(item.get("watering_enabled", False)),
+        "identify_requested": bool(item.get("identify_requested", False)),
         "connected": _is_connected(item),
         "terminal_session_active": bool(item.get("terminal_session_active", False)),
         "keep_awake_until_utc": item.get("keep_awake_until_utc", ""),
@@ -923,6 +924,14 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
     if body.get("deep_sleep_entering") is True:
         item["terminal_session_active"] = False
         item["deep_sleep_requested"] = False
+
+    if isinstance(body.get("identify_state"), bool):
+        item["identify_requested"] = body["identify_state"]
+        if body["identify_state"] is False:
+            item["identify_requested_at_utc"] = _utc_now_iso()
+        else:
+            item["identify_duration_sec"] = int(body.get("identify_duration_sec", 15))
+            item["identify_requested_at_utc"] = _utc_now_iso()
 
     output_lines = body.get("output_lines", [])
     if isinstance(output_lines, list):

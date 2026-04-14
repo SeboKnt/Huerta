@@ -157,6 +157,21 @@
       border-color: #ffe3b3;
     }
 
+    .identify-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 8px;
+      border-radius: 999px;
+      background: transparent;
+      vertical-align: middle;
+    }
+
+    .identify-dot.active {
+      background: #dc2626;
+      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
+    }
+
     .actions {
       display: flex;
       align-items: center;
@@ -635,7 +650,7 @@
 
         tableBody.innerHTML = devices.map((d) => `
           <tr>
-            <td><strong>${d.name || "Unnamed device"}</strong></td>
+            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong>${d.name || "Unnamed device"}</strong></td>
             <td>${statusChip(d.status)}</td>
             <td>${d.firmware || "-"}</td>
             <td>${d.ip || "-"}</td>
@@ -643,12 +658,12 @@
             <td>${d.watering_enabled ? "enabled" : "disabled"}</td>
             <td>
               <div class="actions">
+                <button type="button" data-action-identify="true" data-device="${d.id}">Identify</button>
                 <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
                 <select class="action-select" data-device="${d.id}">
                   <option value="delete_device">Delete Device</option>
                   <option value="rename_device">Rename Device</option>
                   <option value="restart">Restart</option>
-                  <option value="identify">Identify LED</option>
                   <option value="toggle_watering">Toggle Watering</option>
                 </select>
                 <button type="button" data-action-run="true" data-device="${d.id}">Run</button>
@@ -784,7 +799,7 @@
 
     async function openTerminal(deviceId) {
       activeTerminalDeviceId = deviceId;
-      terminalTitle.textContent = `ESP Terminal - ${deviceId}`;
+      terminalTitle.textContent = "ESP Terminal";
       terminalOutput.textContent = "Opening terminal session...";
       terminalModal.classList.add("open");
 
@@ -885,6 +900,15 @@
     }
 
     tableBody.addEventListener("click", async (event) => {
+      const identifyBtn = event.target.closest("button[data-action-identify]");
+      if (identifyBtn) {
+        const deviceId = identifyBtn.getAttribute("data-device");
+        if (deviceId) {
+          await sendAction(deviceId, "identify");
+        }
+        return;
+      }
+
       const terminalBtn = event.target.closest("button[data-terminal-open]");
       if (terminalBtn) {
         const deviceId = terminalBtn.getAttribute("data-device");
