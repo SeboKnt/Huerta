@@ -171,13 +171,32 @@ def _extract_identity(req: func.HttpRequest):
     return principal_name, identity_provider
 
 
-def _require_write_access(req: func.HttpRequest):
+def _auth_diagnostics(req: func.HttpRequest) -> dict:
     principal_name, identity_provider = _extract_identity(req)
+    return {
+        "principal_name": principal_name,
+        "identity_provider": identity_provider,
+        "header_present": {
+            "x_ms_client_principal": bool(req.headers.get("X-MS-CLIENT-PRINCIPAL")),
+            "x_ms_client_principal_name": bool(req.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")),
+            "x_ms_client_principal_idp": bool(req.headers.get("X-MS-CLIENT-PRINCIPAL-IDP")),
+        },
+        "allowlist_configured": bool(_ALLOWED_WRITE_ACCOUNTS),
+        "allowlist_entries": sorted(list(_ALLOWED_WRITE_ACCOUNTS)),
+    }
+
+
+def _require_write_access(req: func.HttpRequest):
+    diagnostics = _auth_diagnostics(req)
+    principal_name = diagnostics["principal_name"]
+    identity_provider = diagnostics["identity_provider"]
+
     if not principal_name:
         return _json_response(
             {
                 "status": "error",
                 "message": "authentication required for write operations",
+                "auth_debug": diagnostics,
             },
             status_code=401,
         )
@@ -187,6 +206,7 @@ def _require_write_access(req: func.HttpRequest):
             {
                 "status": "error",
                 "message": "only Microsoft identity provider is allowed for write operations",
+                "auth_debug": diagnostics,
             },
             status_code=403,
         )
@@ -205,11 +225,29 @@ def _require_write_access(req: func.HttpRequest):
                 "status": "error",
                 "message": "account is not in write allowlist",
                 "account": principal_name,
+                "auth_debug": diagnostics,
             },
             status_code=403,
         )
 
     return None
+
+
+@app.route(route="auth/debug", methods=["GET"])
+def auth_debug(req: func.HttpRequest) -> func.HttpResponse:
+    diagnostics = _auth_diagnostics(req)
+    diagnostics["allowed_write"] = (
+        bool(diagnostics["principal_name"])
+        and (
+            (not diagnostics["identity_provider"])
+            or diagnostics["identity_provider"] in {"aad", "microsoft", "entra"}
+        )
+        and (
+            (not diagnostics["allowlist_configured"])
+            or diagnostics["principal_name"] in _ALLOWED_WRITE_ACCOUNTS
+        )
+    )
+    return _json_response({"status": "ok", "auth": diagnostics}, status_code=200)
 
 
 @app.route(route="health")
