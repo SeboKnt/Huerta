@@ -172,15 +172,6 @@ def _extract_identity(req: func.HttpRequest):
 
 
 def _require_write_access(req: func.HttpRequest):
-    if not _ALLOWED_WRITE_ACCOUNTS:
-        return _json_response(
-            {
-                "status": "error",
-                "message": "write access is not configured (set ALLOWED_WRITE_ACCOUNTS)",
-            },
-            status_code=500,
-        )
-
     principal_name, identity_provider = _extract_identity(req)
     if not principal_name:
         return _json_response(
@@ -199,6 +190,14 @@ def _require_write_access(req: func.HttpRequest):
             },
             status_code=403,
         )
+
+    # If no allowlist is configured, any authenticated Microsoft account may write.
+    if not _ALLOWED_WRITE_ACCOUNTS:
+        logging.warning(
+            "ALLOWED_WRITE_ACCOUNTS is not set; allowing write access for authenticated Microsoft user '%s'",
+            principal_name,
+        )
+        return None
 
     if principal_name not in _ALLOWED_WRITE_ACCOUNTS:
         return _json_response(
