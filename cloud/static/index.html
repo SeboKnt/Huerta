@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -70,6 +70,34 @@
       font-size: 0.85rem;
     }
 
+    .health-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--chip);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+    }
+
+    .health-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #9ca3af;
+    }
+
+    .health-dot.up {
+      background: #16a34a;
+      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
+    }
+
+    .health-dot.down {
+      background: #dc2626;
+      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -131,8 +159,23 @@
 
     .actions {
       display: flex;
-      flex-wrap: wrap;
+      align-items: center;
       gap: 8px;
+    }
+
+    .action-select {
+      min-width: 150px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      border-radius: 9px;
+      padding: 7px 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+
+    .action-select:focus {
+      outline: none;
+      border-color: #b6b09d;
     }
 
     button {
@@ -159,6 +202,177 @@
       font-size: 0.85rem;
       min-height: 56px;
       white-space: pre-wrap;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(37, 35, 29, 0.4);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.open {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 480px;
+      width: 90%;
+      border: 1px solid var(--line);
+      box-shadow: 0 20px 60px rgba(36, 34, 29, 0.2);
+    }
+
+    .modal h2 {
+      margin: 0 0 16px;
+      font-size: 1.4rem;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fdfcf9;
+      font-family: inherit;
+      font-size: 0.95rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: #ffffff;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #ffffff;
+      cursor: pointer;
+      font-weight: 500;
+      transition: transform 0.12s ease, border-color 0.15s ease;
+    }
+
+    .modal-actions button:hover {
+      transform: translateY(-1px);
+      border-color: #b6b09d;
+    }
+
+    .modal-actions button.submit {
+      background: #1d1f21;
+      color: #ffffff;
+      border-color: #1d1f21;
+    }
+
+    .modal-actions button.submit:hover {
+      border-color: #3a3a3a;
+    }
+
+    .terminal-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #9ca3af;
+    }
+
+    .terminal-dot.online {
+      background: #16a34a;
+      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
+    }
+
+    .terminal-dot.offline {
+      background: #dc2626;
+      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+    }
+
+    .terminal-meta {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .terminal-output {
+      margin: 0;
+      padding: 12px;
+      background: #111317;
+      color: #e9edf3;
+      border-radius: 10px;
+      border: 1px solid #2a2f37;
+      min-height: 220px;
+      max-height: 300px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.84rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+    }
+
+    .terminal-controls {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .terminal-controls button {
+      flex: 1;
+    }
+
+    .terminal-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .terminal-input {
+      flex: 1;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 9px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9rem;
+      background: #ffffff;
+    }
+
+    .terminal-open-btn {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
     }
 
     @keyframes rise {
@@ -206,44 +420,127 @@
   <main class="wrap">
     <section class="hero">
       <h1>Huerta ESP32 Dashboard</h1>
-      <p class="subtitle">Lokale Verwaltung ohne Datenbank. Cosmos kann spaeter darunter gehangen werden.</p>
+      <p class="subtitle">ESP32 management dashboard with live Cosmos DB backend.</p>
     </section>
 
     <section class="topbar">
-      <span id="deviceCount" class="badge">Lade Geraete...</span>
-      <button id="reloadBtn" type="button">Neu laden</button>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="deviceCount" class="badge">Loading devices...</span>
+        <span id="cosmosStatus" class="health-badge">
+          <span id="cosmosDot" class="health-dot" aria-hidden="true"></span>
+          <span id="cosmosText">Cosmos: checking...</span>
+        </span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="reloadBtn" type="button">Reload</button>
+        <button id="onboardBtn" type="button" style="background: #1d1f21; color: #ffffff; border-color: #1d1f21;">Onboard ESP</button>
+      </div>
     </section>
 
     <section class="panel">
       <table>
         <thead>
           <tr>
-            <th>Geraet</th>
+            <th>Device</th>
             <th>Status</th>
             <th>Firmware</th>
             <th>IP</th>
-            <th>Letztes Signal</th>
-            <th>Bewaesserung</th>
-            <th>Aktionen</th>
+            <th>Last Seen</th>
+            <th>Watering</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="deviceTable">
-          <tr><td colspan="7">Lade Daten...</td></tr>
+          <tr><td colspan="7">Loading data...</td></tr>
         </tbody>
       </table>
     </section>
 
-    <pre id="log" class="log">Bereit.</pre>
+    <pre id="log" class="log">Ready.</pre>
   </main>
+
+  <div id="onboardModal" class="modal">
+    <div class="modal-content">
+      <h2>Onboard ESP32</h2>
+      <form id="onboardForm">
+        <div class="form-group">
+          <label for="deviceId">Device ID *</label>
+          <input
+            type="text"
+            id="deviceId"
+            name="deviceId"
+            placeholder="e.g. esp32-garden-03"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="deviceName">Device name *</label>
+          <input
+            type="text"
+            id="deviceName"
+            name="deviceName"
+            placeholder="e.g. Garden Node 03"
+            required
+          />
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelBtn">Cancel</button>
+          <button type="submit" class="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="terminalModal" class="modal">
+    <div class="modal-content" style="max-width: 760px; width: 94%;">
+      <h2 id="terminalTitle">ESP Terminal</h2>
+      <div class="terminal-status">
+        <span id="terminalDot" class="terminal-dot" aria-hidden="true"></span>
+        <span id="terminalStatusText">Connection unknown</span>
+      </div>
+      <div id="terminalMeta" class="terminal-meta">Session not active</div>
+      <pre id="terminalOutput" class="terminal-output">Open a device terminal to start.</pre>
+
+      <div class="terminal-controls">
+        <button type="button" id="wakeBtn">Wake / Keep Awake</button>
+        <button type="button" id="sleepBtn">Request Deep Sleep</button>
+      </div>
+
+      <div class="terminal-input-row">
+        <input id="terminalInput" class="terminal-input" type="text" placeholder="Type command and press Enter..." />
+        <button id="terminalSendBtn" type="button">Send</button>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 14px;">
+        <button type="button" id="terminalCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const tableBody = document.getElementById("deviceTable");
     const countBadge = document.getElementById("deviceCount");
+    const cosmosDot = document.getElementById("cosmosDot");
+    const cosmosText = document.getElementById("cosmosText");
     const reloadBtn = document.getElementById("reloadBtn");
     const logBox = document.getElementById("log");
+    const terminalModal = document.getElementById("terminalModal");
+    const terminalTitle = document.getElementById("terminalTitle");
+    const terminalDot = document.getElementById("terminalDot");
+    const terminalStatusText = document.getElementById("terminalStatusText");
+    const terminalMeta = document.getElementById("terminalMeta");
+    const terminalOutput = document.getElementById("terminalOutput");
+    const terminalInput = document.getElementById("terminalInput");
+    const terminalSendBtn = document.getElementById("terminalSendBtn");
+    const terminalCloseBtn = document.getElementById("terminalCloseBtn");
+    const wakeBtn = document.getElementById("wakeBtn");
+    const sleepBtn = document.getElementById("sleepBtn");
+
+    let activeTerminalDeviceId = "";
+    let terminalPollId = null;
 
     function log(message) {
-      const ts = new Date().toLocaleTimeString("de-DE");
+      const ts = new Date().toLocaleTimeString("en-US");
       logBox.textContent = `[${ts}] ${message}`;
     }
 
@@ -252,21 +549,48 @@
       return `<span class="chip ${safe}">${safe}</span>`;
     }
 
+    async function refreshCosmosIndicator() {
+      try {
+        const response = await fetch("/health", { method: "GET" });
+        const data = await response.json();
+
+        if (response.ok && data.cosmos_connected === true) {
+          cosmosDot.classList.remove("down");
+          cosmosDot.classList.add("up");
+          cosmosText.textContent = "Cosmos: connected";
+          return;
+        }
+
+        cosmosDot.classList.remove("up");
+        cosmosDot.classList.add("down");
+        if (data.cosmos_configured === false) {
+          cosmosText.textContent = "Cosmos: not configured";
+        } else {
+          cosmosText.textContent = "Cosmos: disconnected";
+        }
+      } catch (error) {
+        cosmosDot.classList.remove("up");
+        cosmosDot.classList.add("down");
+        cosmosText.textContent = "Cosmos: unreachable";
+      }
+    }
+
     async function loadDevices() {
-      tableBody.innerHTML = `<tr><td colspan="7">Lade Daten...</td></tr>`;
+      await refreshCosmosIndicator();
+      tableBody.innerHTML = `<tr><td colspan="7">Loading data...</td></tr>`;
 
       try {
         const response = await fetch("/devices", { method: "GET" });
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.message || "API Fehler");
+          throw new Error(data.message || "API error");
         }
 
         const devices = Array.isArray(data.devices) ? data.devices : [];
-        countBadge.textContent = `${devices.length} Geraete verbunden`;
+        countBadge.textContent = `${devices.length} devices connected`;
 
         if (devices.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="7">Keine Geraete vorhanden.</td></tr>`;
+          tableBody.innerHTML = `<tr><td colspan="7">No devices available.</td></tr>`;
           return;
         }
 
@@ -277,33 +601,68 @@
             <td>${d.firmware || "-"}</td>
             <td>${d.ip || "-"}</td>
             <td>${d.last_seen_utc || "-"}</td>
-            <td>${d.watering_enabled ? "aktiv" : "aus"}</td>
+            <td>${d.watering_enabled ? "enabled" : "disabled"}</td>
             <td>
               <div class="actions">
-                <button type="button" data-action="restart" data-device="${d.id}">Restart</button>
-                <button type="button" data-action="set_watering_on" data-device="${d.id}">Water ON</button>
-                <button type="button" data-action="set_watering_off" data-device="${d.id}">Water OFF</button>
+                <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
+                <select class="action-select" data-device="${d.id}">
+                  <option value="rename_device">Rename Device</option>
+                  <option value="restart">Restart</option>
+                  <option value="identify">Identify LED</option>
+                  <option value="toggle_watering">Toggle Watering</option>
+                </select>
+                <button type="button" data-action-run="true" data-device="${d.id}">Run</button>
               </div>
             </td>
           </tr>
         `).join("");
 
-        log("Geraeteliste erfolgreich geladen.");
+        log("Device list loaded successfully.");
       } catch (error) {
-        tableBody.innerHTML = `<tr><td colspan="7">Fehler beim Laden: ${String(error)}</td></tr>`;
-        countBadge.textContent = "Fehler";
-        log(`Fehler: ${String(error)}`);
+        tableBody.innerHTML = `<tr><td colspan="7">Error loading data: ${String(error)}</td></tr>`;
+        countBadge.textContent = "Error";
+        log(`Error: ${String(error)}`);
       }
     }
 
     async function sendAction(deviceId, action) {
+      if (action === "rename_device") {
+        const newName = window.prompt("Enter new device name:");
+        if (newName === null) {
+          return;
+        }
+
+        const trimmed = newName.trim();
+        if (!trimmed) {
+          log("Rename canceled: empty name.");
+          return;
+        }
+
+        try {
+          const response = await fetch(`/devices/${deviceId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: trimmed })
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || "Rename failed");
+          }
+          log(`Device '${deviceId}' renamed to '${trimmed}'.`);
+          await loadDevices();
+        } catch (error) {
+          log(`Rename failed: ${String(error)}`);
+        }
+        return;
+      }
+
       let body;
       if (action === "restart") {
         body = { action: "restart" };
-      } else if (action === "set_watering_on") {
-        body = { action: "set_watering", enabled: true };
-      } else if (action === "set_watering_off") {
-        body = { action: "set_watering", enabled: false };
+      } else if (action === "identify") {
+        body = { action: "identify", duration_sec: 15 };
+      } else if (action === "toggle_watering") {
+        body = { action: "toggle_watering" };
       } else {
         return;
       }
@@ -316,23 +675,171 @@
         });
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.message || "Aktion fehlgeschlagen");
+          throw new Error(data.message || "Action failed");
         }
-        log(`Aktion '${body.action}' fuer ${deviceId} erfolgreich.`);
+        log(`Action '${body.action}' for ${deviceId} succeeded.`);
         await loadDevices();
       } catch (error) {
-        log(`Aktion fehlgeschlagen: ${String(error)}`);
+        log(`Action failed: ${String(error)}`);
+      }
+    }
+
+    function setTerminalConnection(connected) {
+      terminalDot.classList.remove("online", "offline");
+      if (connected) {
+        terminalDot.classList.add("online");
+        terminalStatusText.textContent = "ESP is connected";
+      } else {
+        terminalDot.classList.add("offline");
+        terminalStatusText.textContent = "ESP is offline / sleeping";
+      }
+    }
+
+    async function refreshTerminalState() {
+      if (!activeTerminalDeviceId) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/devices/${activeTerminalDeviceId}/terminal`, { method: "GET" });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to read terminal state");
+        }
+
+        const term = data.terminal || {};
+        setTerminalConnection(Boolean(term.connected));
+        terminalMeta.textContent = `Session: ${term.session_active ? "active" : "inactive"} | Pending commands: ${term.pending_commands || 0} | Keep awake until: ${term.keep_awake_until_utc || "-"}`;
+
+        const lines = Array.isArray(term.output) ? term.output : [];
+        terminalOutput.textContent = lines.length > 0 ? lines.join("\n") : "No terminal output yet. Device will append output when online.";
+        terminalOutput.scrollTop = terminalOutput.scrollHeight;
+      } catch (error) {
+        setTerminalConnection(false);
+        terminalMeta.textContent = `Error: ${String(error)}`;
+      }
+    }
+
+    async function openTerminal(deviceId) {
+      activeTerminalDeviceId = deviceId;
+      terminalTitle.textContent = `ESP Terminal - ${deviceId}`;
+      terminalOutput.textContent = "Opening terminal session...";
+      terminalModal.classList.add("open");
+
+      try {
+        await fetch(`/devices/${deviceId}/terminal/open`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keep_awake_seconds: 900 })
+        });
+      } catch (error) {
+        log(`Failed to request terminal session: ${String(error)}`);
+      }
+
+      await refreshTerminalState();
+      if (terminalPollId) {
+        clearInterval(terminalPollId);
+      }
+      terminalPollId = setInterval(refreshTerminalState, 5000);
+    }
+
+    function closeTerminal() {
+      terminalModal.classList.remove("open");
+      activeTerminalDeviceId = "";
+      if (terminalPollId) {
+        clearInterval(terminalPollId);
+        terminalPollId = null;
+      }
+    }
+
+    async function sendTerminalCommand() {
+      if (!activeTerminalDeviceId) {
+        return;
+      }
+
+      const command = terminalInput.value.trim();
+      if (!command) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/devices/${activeTerminalDeviceId}/terminal/command`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Command queue failed");
+        }
+        terminalInput.value = "";
+        log(`Command queued for ${activeTerminalDeviceId}: ${command}`);
+        await refreshTerminalState();
+      } catch (error) {
+        log(`Terminal command failed: ${String(error)}`);
+      }
+    }
+
+    async function requestWake() {
+      if (!activeTerminalDeviceId) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/devices/${activeTerminalDeviceId}/power/wake`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keep_awake_seconds: 900 })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Wake request failed");
+        }
+        log(`Wake requested for ${activeTerminalDeviceId}`);
+        await refreshTerminalState();
+      } catch (error) {
+        log(`Wake request failed: ${String(error)}`);
+      }
+    }
+
+    async function requestSleep() {
+      if (!activeTerminalDeviceId) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/devices/${activeTerminalDeviceId}/power/sleep`, {
+          method: "POST"
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Sleep request failed");
+        }
+        log(`Deep sleep requested for ${activeTerminalDeviceId}`);
+        await refreshTerminalState();
+      } catch (error) {
+        log(`Sleep request failed: ${String(error)}`);
       }
     }
 
     tableBody.addEventListener("click", async (event) => {
-      const btn = event.target.closest("button[data-action]");
+      const terminalBtn = event.target.closest("button[data-terminal-open]");
+      if (terminalBtn) {
+        const deviceId = terminalBtn.getAttribute("data-device");
+        if (deviceId) {
+          await openTerminal(deviceId);
+        }
+        return;
+      }
+
+      const btn = event.target.closest("button[data-action-run]");
       if (!btn) {
         return;
       }
 
       const deviceId = btn.getAttribute("data-device");
-      const action = btn.getAttribute("data-action");
+      const select = tableBody.querySelector(`select.action-select[data-device="${deviceId}"]`);
+      const action = select ? select.value : "";
       if (!deviceId || !action) {
         return;
       }
@@ -340,6 +847,80 @@
     });
 
     reloadBtn.addEventListener("click", loadDevices);
+    terminalCloseBtn.addEventListener("click", closeTerminal);
+    terminalSendBtn.addEventListener("click", sendTerminalCommand);
+    terminalInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        sendTerminalCommand();
+      }
+    });
+    wakeBtn.addEventListener("click", requestWake);
+    sleepBtn.addEventListener("click", requestSleep);
+    terminalModal.addEventListener("click", (event) => {
+      if (event.target === terminalModal) {
+        closeTerminal();
+      }
+    });
+
+    const modal = document.getElementById("onboardModal");
+    const onboardBtn = document.getElementById("onboardBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const onboardForm = document.getElementById("onboardForm");
+    const deviceIdInput = document.getElementById("deviceId");
+    const deviceNameInput = document.getElementById("deviceName");
+
+    onboardBtn.addEventListener("click", () => {
+      modal.classList.add("open");
+      deviceIdInput.focus();
+    });
+
+    cancelBtn.addEventListener("click", () => {
+      modal.classList.remove("open");
+      onboardForm.reset();
+    });
+
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        modal.classList.remove("open");
+        onboardForm.reset();
+      }
+    });
+
+    onboardForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const deviceId = deviceIdInput.value.trim();
+      const deviceName = deviceNameInput.value.trim();
+
+      if (!deviceId || !deviceName) {
+        log("Error: ID and name are required.");
+        return;
+      }
+
+      try {
+        const response = await fetch("/devices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: deviceId, name: deviceName })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Onboarding failed");
+        }
+
+        log(`New device '${deviceId}' created successfully.`);
+        if (data.provisioning_token) {
+          log(`Provisioning token for ${deviceId}: ${data.provisioning_token}`);
+        }
+        modal.classList.remove("open");
+        onboardForm.reset();
+        await loadDevices();
+      } catch (error) {
+        log(`Onboarding error: ${String(error)}`);
+      }
+    });
 
     loadDevices();
   </script>

@@ -1,34 +1,136 @@
 import json
+import os
+import uuid
+import hmac
+import hashlib
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import azure.functions as func
+from azure.cosmos import CosmosClient, exceptions
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 _BASE_DIR = Path(__file__).parent
 _INDEX_PATH = _BASE_DIR / "static" / "index.html"
 
-_DEVICES = {
-    "esp32-garden-01": {
-        "id": "esp32-garden-01",
-        "name": "Garden Node 01",
-        "status": "online",
-        "firmware": "1.0.0",
-        "ip": "192.168.178.51",
-        "last_seen_utc": "2026-04-14T10:00:00Z",
-        "watering_enabled": True,
-    },
-    "esp32-garden-02": {
-        "id": "esp32-garden-02",
-        "name": "Garden Node 02",
-        "status": "offline",
-        "firmware": "1.0.0",
-        "ip": "192.168.178.52",
-        "last_seen_utc": "2026-04-13T22:41:00Z",
-        "watering_enabled": False,
-    },
-}
+_COSMOS_URI = os.getenv("COSMOS_URI")
+_COSMOS_KEY = os.getenv("COSMOS_KEY")
+_COSMOS_DATABASE = os.getenv("COSMOS_DATABASE")
+_COSMOS_CONTAINER = os.getenv("COSMOS_CONTAINER")
+_DEVICE_TOKEN_SECRET = os.getenv("DEVICE_TOKEN_SECRET")
+
+_CONTAINER_CLIENT = None
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _utc_plus_seconds_iso(seconds: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _parse_utc(value: str):
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _is_connected(item: dict) -> bool:
+    last_seen = _parse_utc(item.get("last_seen_utc", ""))
+    if last_seen is None:
+        return False
+    return (datetime.now(timezone.utc) - last_seen).total_seconds() <= 120
+
+
+def _ensure_terminal_fields(item: dict) -> None:
+    if not isinstance(item.get("terminal_commands"), list):
+        item["terminal_commands"] = []
+    if not isinstance(item.get("terminal_output"), list):
+        item["terminal_output"] = []
+    if "terminal_session_active" not in item:
+        item["terminal_session_active"] = False
+
+
+def _compute_device_auth_hash(device_id: str) -> str:
+    if not _DEVICE_TOKEN_SECRET:
+        raise RuntimeError("missing DEVICE_TOKEN_SECRET")
+    return hmac.new(
+        _DEVICE_TOKEN_SECRET.encode("utf-8"),
+        device_id.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _validate_device_token(item: dict, provided_token: str):
+    device_id = item.get("deviceId") or item.get("id") or ""
+    if not device_id:
+        return False, "deviceId missing"
+
+    if not provided_token:
+        return False, "missing device token"
+
+    try:
+        expected = _compute_device_auth_hash(device_id)
+    except RuntimeError as exc:
+        return False, str(exc)
+
+    stored = item.get("device_auth_hash", "")
+    if not isinstance(stored, str) or not stored:
+        return False, "device auth hash missing in database"
+
+    if not hmac.compare_digest(stored, expected):
+        return False, "device auth hash mismatch"
+
+    if not hmac.compare_digest(provided_token, expected):
+        return False, "invalid device token"
+
+    return True, "ok"
+
+
+def _get_container_client():
+    global _CONTAINER_CLIENT
+
+    if _CONTAINER_CLIENT is not None:
+        return _CONTAINER_CLIENT
+
+    missing = []
+    if not _COSMOS_URI:
+        missing.append("COSMOS_URI")
+    if not _COSMOS_KEY:
+        missing.append("COSMOS_KEY")
+    if not _COSMOS_DATABASE:
+        missing.append("COSMOS_DATABASE")
+    if not _COSMOS_CONTAINER:
+        missing.append("COSMOS_CONTAINER")
+
+    if missing:
+        raise RuntimeError(f"missing Cosmos configuration: {', '.join(missing)}")
+
+    client = CosmosClient(_COSMOS_URI, credential=_COSMOS_KEY)
+    database = client.get_database_client(_COSMOS_DATABASE)
+    _CONTAINER_CLIENT = database.get_container_client(_COSMOS_CONTAINER)
+    return _CONTAINER_CLIENT
+
+
+def _to_device_response(item: dict) -> dict:
+    device_id = item.get("deviceId") or item.get("id") or ""
+    return {
+        "id": device_id,
+        "name": item.get("name", device_id),
+        "status": item.get("status", "offline"),
+        "firmware": item.get("firmware", "unknown"),
+        "ip": item.get("ip", "0.0.0.0"),
+        "last_seen_utc": item.get("last_seen_utc", ""),
+        "watering_enabled": bool(item.get("watering_enabled", False)),
+        "connected": _is_connected(item),
+        "terminal_session_active": bool(item.get("terminal_session_active", False)),
+        "keep_awake_until_utc": item.get("keep_awake_until_utc", ""),
+    }
 
 
 def _json_response(payload: dict, status_code: int = 200) -> func.HttpResponse:
@@ -41,11 +143,28 @@ def _json_response(payload: dict, status_code: int = 200) -> func.HttpResponse:
 
 @app.route(route="health")
 def health(req: func.HttpRequest) -> func.HttpResponse:
+    configured = all([_COSMOS_URI, _COSMOS_KEY, _COSMOS_DATABASE, _COSMOS_CONTAINER])
+    cosmos_connected = False
+    cosmos_error = None
+
+    if configured:
+        try:
+            container = _get_container_client()
+            container.read()
+            cosmos_connected = True
+        except Exception as exc:
+            cosmos_error = str(exc)
+
     payload = {
         "status": "ok",
         "service": "Huerta Function",
         "message": "Azure Function is running",
+        "cosmos_configured": configured,
+        "cosmos_connected": cosmos_connected,
     }
+    if cosmos_error:
+        payload["cosmos_error"] = cosmos_error
+
     return _json_response(payload, status_code=200)
 
 
@@ -55,35 +174,117 @@ def list_devices(req: func.HttpRequest) -> func.HttpResponse:
     if "text/html" in accept_header:
         return index(req)
 
-    payload = {
-        "status": "ok",
-        "count": len(_DEVICES),
-        "devices": list(_DEVICES.values()),
-    }
-    return _json_response(payload, status_code=200)
+    try:
+        container = _get_container_client()
+        items = list(
+            container.query_items(
+                query="SELECT * FROM c",
+                enable_cross_partition_query=True,
+            )
+        )
+        devices = [_to_device_response(item) for item in items]
+        payload = {
+            "status": "ok",
+            "count": len(devices),
+            "devices": devices,
+        }
+        return _json_response(payload, status_code=200)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to load devices: {exc}"},
+            status_code=500,
+        )
 
 
 @app.route(route="devices/{device_id}", methods=["GET"])
 def get_device(req: func.HttpRequest) -> func.HttpResponse:
     device_id = req.route_params.get("device_id", "")
-    device = _DEVICES.get(device_id)
-    if device is None:
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
         return _json_response(
             {"status": "error", "message": f"device '{device_id}' not found"},
             status_code=404,
         )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to load device: {exc}"},
+            status_code=500,
+        )
 
-    return _json_response({"status": "ok", "device": device}, status_code=200)
+    return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
+
+
+@app.route(route="devices/{device_id}", methods=["PATCH"])
+def update_device(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+
+    try:
+        body = req.get_json()
+    except ValueError:
+        return _json_response(
+            {"status": "error", "message": "invalid JSON body"},
+            status_code=400,
+        )
+
+    new_name = body.get("name", "")
+    if not isinstance(new_name, str) or not new_name.strip():
+        return _json_response(
+            {"status": "error", "message": "name is required"},
+            status_code=400,
+        )
+
+    new_name = new_name.strip()
+    if len(new_name) > 80:
+        return _json_response(
+            {"status": "error", "message": "name too long (max 80 chars)"},
+            status_code=400,
+        )
+
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to load device: {exc}"},
+            status_code=500,
+        )
+
+    item["name"] = new_name
+    item["updated_at_utc"] = _utc_now_iso()
+
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to update device: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
 
 
 @app.route(route="devices/{device_id}/action", methods=["POST"])
 def device_action(req: func.HttpRequest) -> func.HttpResponse:
     device_id = req.route_params.get("device_id", "")
-    device = _DEVICES.get(device_id)
-    if device is None:
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
         return _json_response(
             {"status": "error", "message": f"device '{device_id}' not found"},
             status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to load device: {exc}"},
+            status_code=500,
         )
 
     try:
@@ -96,7 +297,19 @@ def device_action(req: func.HttpRequest) -> func.HttpResponse:
 
     action = body.get("action")
     if action == "restart":
-        device["status"] = "restarting"
+        item["status"] = "restarting"
+    elif action == "identify":
+        duration_sec = body.get("duration_sec", 15)
+        if not isinstance(duration_sec, int) or duration_sec < 1 or duration_sec > 120:
+            return _json_response(
+                {"status": "error", "message": "duration_sec must be an integer between 1 and 120"},
+                status_code=400,
+            )
+
+        # ESP can consume these fields to blink/enable an identification LED.
+        item["identify_requested"] = True
+        item["identify_duration_sec"] = duration_sec
+        item["identify_requested_at_utc"] = _utc_now_iso()
     elif action == "set_watering":
         enabled = body.get("enabled")
         if not isinstance(enabled, bool):
@@ -104,18 +317,450 @@ def device_action(req: func.HttpRequest) -> func.HttpResponse:
                 {"status": "error", "message": "enabled must be boolean"},
                 status_code=400,
             )
-        device["watering_enabled"] = enabled
+        item["watering_enabled"] = enabled
+    elif action == "toggle_watering":
+        item["watering_enabled"] = not bool(item.get("watering_enabled", False))
     else:
         return _json_response(
             {
                 "status": "error",
-                "message": "unsupported action, use 'restart' or 'set_watering'",
+                "message": "unsupported action, use 'restart', 'identify', 'toggle_watering' or 'set_watering'",
             },
             status_code=400,
         )
 
-    device["last_seen_utc"] = datetime.now(timezone.utc).isoformat()
-    return _json_response({"status": "ok", "device": device}, status_code=200)
+    item["last_command_at_utc"] = _utc_now_iso()
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to update device: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
+
+
+@app.route(route="devices/{device_id}/terminal", methods=["GET"])
+def terminal_state(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to load terminal state: {exc}"},
+            status_code=500,
+        )
+
+    _ensure_terminal_fields(item)
+    output = item.get("terminal_output", [])
+    commands = item.get("terminal_commands", [])
+    payload = {
+        "status": "ok",
+        "device": _to_device_response(item),
+        "terminal": {
+            "connected": _is_connected(item),
+            "session_active": bool(item.get("terminal_session_active", False)),
+            "keep_awake_until_utc": item.get("keep_awake_until_utc", ""),
+            "pending_commands": len(commands),
+            "output": output[-80:],
+        },
+    }
+    return _json_response(payload, status_code=200)
+
+
+@app.route(route="devices/{device_id}/terminal/open", methods=["POST"])
+def terminal_open(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    try:
+        body = req.get_json()
+    except ValueError:
+        body = {}
+
+    keep_awake_seconds = body.get("keep_awake_seconds", 900)
+    if not isinstance(keep_awake_seconds, int) or keep_awake_seconds < 30 or keep_awake_seconds > 3600:
+        return _json_response(
+            {"status": "error", "message": "keep_awake_seconds must be an integer between 30 and 3600"},
+            status_code=400,
+        )
+
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to open terminal session: {exc}"},
+            status_code=500,
+        )
+
+    _ensure_terminal_fields(item)
+    item["terminal_session_active"] = True
+    item["wake_requested"] = True
+    item["deep_sleep_requested"] = False
+    item["keep_awake_until_utc"] = _utc_plus_seconds_iso(keep_awake_seconds)
+    item["terminal_open_requested_at_utc"] = _utc_now_iso()
+
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to persist terminal session: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
+
+
+@app.route(route="devices/{device_id}/terminal/command", methods=["POST"])
+def terminal_command(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    try:
+        body = req.get_json()
+    except ValueError:
+        return _json_response(
+            {"status": "error", "message": "invalid JSON body"},
+            status_code=400,
+        )
+
+    command = body.get("command", "")
+    if not isinstance(command, str) or not command.strip():
+        return _json_response(
+            {"status": "error", "message": "command is required"},
+            status_code=400,
+        )
+
+    command = command.strip()
+    if len(command) > 200:
+        return _json_response(
+            {"status": "error", "message": "command too long (max 200 chars)"},
+            status_code=400,
+        )
+
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to queue terminal command: {exc}"},
+            status_code=500,
+        )
+
+    _ensure_terminal_fields(item)
+    item["terminal_session_active"] = True
+    item["wake_requested"] = True
+    item["deep_sleep_requested"] = False
+    item["keep_awake_until_utc"] = _utc_plus_seconds_iso(900)
+    item["terminal_commands"].append(
+        {
+            "id": str(uuid.uuid4()),
+            "command": command,
+            "created_at_utc": _utc_now_iso(),
+            "status": "queued",
+        }
+    )
+    if len(item["terminal_commands"]) > 100:
+        item["terminal_commands"] = item["terminal_commands"][-100:]
+
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to persist terminal command: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response(
+        {
+            "status": "ok",
+            "queued": True,
+            "pending_commands": len(item["terminal_commands"]),
+            "device": _to_device_response(item),
+        },
+        status_code=202,
+    )
+
+
+@app.route(route="devices/{device_id}/power/wake", methods=["POST"])
+def power_wake(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    try:
+        body = req.get_json()
+    except ValueError:
+        body = {}
+
+    keep_awake_seconds = body.get("keep_awake_seconds", 600)
+    if not isinstance(keep_awake_seconds, int) or keep_awake_seconds < 30 or keep_awake_seconds > 3600:
+        return _json_response(
+            {"status": "error", "message": "keep_awake_seconds must be an integer between 30 and 3600"},
+            status_code=400,
+        )
+
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to request wake: {exc}"},
+            status_code=500,
+        )
+
+    item["wake_requested"] = True
+    item["deep_sleep_requested"] = False
+    item["keep_awake_until_utc"] = _utc_plus_seconds_iso(keep_awake_seconds)
+    item["wake_requested_at_utc"] = _utc_now_iso()
+
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to persist wake request: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
+
+
+@app.route(route="devices/{device_id}/power/sleep", methods=["POST"])
+def power_sleep(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to request deep sleep: {exc}"},
+            status_code=500,
+        )
+
+    item["deep_sleep_requested"] = True
+    item["wake_requested"] = False
+    item["terminal_session_active"] = False
+    item["sleep_requested_at_utc"] = _utc_now_iso()
+
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to persist deep sleep request: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
+
+
+@app.route(route="devices", methods=["POST"])
+def add_device(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        body = req.get_json()
+    except ValueError:
+        return _json_response(
+            {"status": "error", "message": "invalid JSON body"},
+            status_code=400,
+        )
+
+    device_id = body.get("id", "").strip()
+    device_name = body.get("name", "").strip()
+
+    if not device_id or not device_name:
+        return _json_response(
+            {"status": "error", "message": "id and name are required"},
+            status_code=400,
+        )
+
+    try:
+        provisioning_token = _compute_device_auth_hash(device_id)
+    except RuntimeError as exc:
+        return _json_response(
+            {"status": "error", "message": str(exc)},
+            status_code=500,
+        )
+
+    new_item = {
+        "id": device_id,
+        "deviceId": device_id,
+        "device_auth_hash": provisioning_token,
+        "name": device_name,
+        "status": "offline",
+        "firmware": "unknown",
+        "ip": "0.0.0.0",
+        "last_seen_utc": _utc_now_iso(),
+        "watering_enabled": False,
+        "terminal_session_active": False,
+        "terminal_commands": [],
+        "terminal_output": [],
+    }
+
+    try:
+        container = _get_container_client()
+        container.create_item(body=new_item)
+    except exceptions.CosmosResourceExistsError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' already exists"},
+            status_code=409,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to create device: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response(
+        {
+            "status": "ok",
+            "device": _to_device_response(new_item),
+            "provisioning_token": provisioning_token,
+        },
+        status_code=201,
+    )
+
+
+@app.route(route="agent/{device_id}/poll", methods=["POST"])
+def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    token = req.headers.get("X-Device-Token", "")
+
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to poll commands: {exc}"},
+            status_code=500,
+        )
+
+    ok, reason = _validate_device_token(item, token)
+    if not ok:
+        return _json_response({"status": "error", "message": reason}, status_code=401)
+
+    _ensure_terminal_fields(item)
+    queued = [c for c in item.get("terminal_commands", []) if c.get("status") == "queued"]
+
+    item["last_seen_utc"] = _utc_now_iso()
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception:
+        pass
+
+    payload = {
+        "status": "ok",
+        "device": _to_device_response(item),
+        "commands": queued,
+        "control": {
+            "wake_requested": bool(item.get("wake_requested", False)),
+            "deep_sleep_requested": bool(item.get("deep_sleep_requested", False)),
+            "terminal_session_active": bool(item.get("terminal_session_active", False)),
+            "keep_awake_until_utc": item.get("keep_awake_until_utc", ""),
+            "identify_requested": bool(item.get("identify_requested", False)),
+            "identify_duration_sec": int(item.get("identify_duration_sec", 15)),
+        },
+    }
+    return _json_response(payload, status_code=200)
+
+
+@app.route(route="agent/{device_id}/report", methods=["POST"])
+def agent_report(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    token = req.headers.get("X-Device-Token", "")
+
+    try:
+        body = req.get_json()
+    except ValueError:
+        return _json_response(
+            {"status": "error", "message": "invalid JSON body"},
+            status_code=400,
+        )
+
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to update device report: {exc}"},
+            status_code=500,
+        )
+
+    ok, reason = _validate_device_token(item, token)
+    if not ok:
+        return _json_response({"status": "error", "message": reason}, status_code=401)
+
+    _ensure_terminal_fields(item)
+    item["last_seen_utc"] = _utc_now_iso()
+
+    if isinstance(body.get("status"), str):
+        item["status"] = body["status"]
+    if isinstance(body.get("ip"), str):
+        item["ip"] = body["ip"]
+    if isinstance(body.get("firmware"), str):
+        item["firmware"] = body["firmware"]
+
+    if body.get("deep_sleep_entering") is True:
+        item["terminal_session_active"] = False
+        item["deep_sleep_requested"] = False
+
+    output_lines = body.get("output_lines", [])
+    if isinstance(output_lines, list):
+        for line in output_lines[:20]:
+            if isinstance(line, str) and line.strip():
+                item["terminal_output"].append(f"{_utc_now_iso()} | {line.strip()}")
+        if len(item["terminal_output"]) > 400:
+            item["terminal_output"] = item["terminal_output"][-400:]
+
+    executed_ids = body.get("executed_command_ids", [])
+    if isinstance(executed_ids, list) and executed_ids:
+        executed_set = set([x for x in executed_ids if isinstance(x, str)])
+        for cmd in item.get("terminal_commands", []):
+            if cmd.get("id") in executed_set:
+                cmd["status"] = "done"
+                cmd["done_at_utc"] = _utc_now_iso()
+
+    if body.get("identify_done") is True:
+        item["identify_requested"] = False
+
+    try:
+        container.replace_item(item=device_id, body=item)
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to persist device report: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response({"status": "ok", "device": _to_device_response(item)}, status_code=200)
 
 
 @app.route(route="")
