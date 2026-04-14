@@ -3,6 +3,8 @@ import os
 import uuid
 import hmac
 import hashlib
+import base64
+import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
@@ -19,6 +21,11 @@ _COSMOS_KEY = os.getenv("COSMOS_KEY")
 _COSMOS_DATABASE = os.getenv("COSMOS_DATABASE")
 _COSMOS_CONTAINER = os.getenv("COSMOS_CONTAINER")
 _DEVICE_TOKEN_SECRET = os.getenv("DEVICE_TOKEN_SECRET")
+_ALLOWED_WRITE_ACCOUNTS = {
+    entry.strip().lower()
+    for entry in os.getenv("ALLOWED_WRITE_ACCOUNTS", "").replace(";", ",").split(",")
+    if entry.strip()
+}
 
 _CONTAINER_CLIENT = None
 
@@ -66,31 +73,35 @@ def _compute_device_auth_hash(device_id: str) -> str:
     ).hexdigest()
 
 
-def _validate_device_token(item: dict, provided_token: str):
-    device_id = item.get("deviceId") or item.get("id") or ""
-    if not device_id:
-        return False, "deviceId missing"
-
-    if not provided_token:
-        return False, "missing device token"
-
+def _extract_serial_number(req: func.HttpRequest) -> str:
     try:
-        expected = _compute_device_auth_hash(device_id)
-    except RuntimeError as exc:
-        return False, str(exc)
+        body = req.get_json()
+    except ValueError:
+        body = {}
 
-    stored = item.get("device_auth_hash", "")
-    if not isinstance(stored, str) or not stored:
-        return False, "device auth hash missing in database"
+    if not isinstance(body, dict):
+        body = {}
 
-    if not hmac.compare_digest(stored, expected):
-        return False, "device auth hash mismatch"
+    serial_number = body.get("serial_number") or ""
+    if isinstance(serial_number, str):
+        return serial_number.strip()
+    return ""
 
-    if not hmac.compare_digest(provided_token, expected):
-        return False, "invalid device token"
 
-    return True, "ok"
-
+def _log_unauthorized_attempt(operation: str, serial_number: str, reason: str, req: func.HttpRequest) -> None:
+    remote_ip = (
+        req.headers.get("X-Forwarded-For")
+        or req.headers.get("X-Azure-ClientIP")
+        or req.headers.get("X-Real-IP")
+        or "unknown"
+    )
+    logging.warning(
+        "Unauthorized %s attempt: serial=%s ip=%s reason=%s",
+        operation,
+        serial_number or "<missing>",
+        remote_ip,
+        reason,
+    )
 
 def _get_container_client():
     global _CONTAINER_CLIENT
@@ -139,6 +150,67 @@ def _json_response(payload: dict, status_code: int = 200) -> func.HttpResponse:
         mimetype="application/json",
         status_code=status_code,
     )
+
+
+def _extract_identity(req: func.HttpRequest):
+    principal_name = (req.headers.get("X-MS-CLIENT-PRINCIPAL-NAME") or "").strip().lower()
+    identity_provider = (req.headers.get("X-MS-CLIENT-PRINCIPAL-IDP") or "").strip().lower()
+
+    encoded_principal = req.headers.get("X-MS-CLIENT-PRINCIPAL") or ""
+    if encoded_principal and (not principal_name or not identity_provider):
+        try:
+            decoded = base64.b64decode(encoded_principal)
+            parsed = json.loads(decoded.decode("utf-8"))
+            if not principal_name:
+                principal_name = str(parsed.get("userDetails", "")).strip().lower()
+            if not identity_provider:
+                identity_provider = str(parsed.get("identityProvider", "")).strip().lower()
+        except Exception:
+            pass
+
+    return principal_name, identity_provider
+
+
+def _require_write_access(req: func.HttpRequest):
+    if not _ALLOWED_WRITE_ACCOUNTS:
+        return _json_response(
+            {
+                "status": "error",
+                "message": "write access is not configured (set ALLOWED_WRITE_ACCOUNTS)",
+            },
+            status_code=500,
+        )
+
+    principal_name, identity_provider = _extract_identity(req)
+    if not principal_name:
+        return _json_response(
+            {
+                "status": "error",
+                "message": "authentication required for write operations",
+            },
+            status_code=401,
+        )
+
+    if identity_provider and identity_provider not in {"aad", "microsoft", "entra"}:
+        return _json_response(
+            {
+                "status": "error",
+                "message": "only Microsoft identity provider is allowed for write operations",
+            },
+            status_code=403,
+        )
+
+    if principal_name not in _ALLOWED_WRITE_ACCOUNTS:
+        return _json_response(
+            {
+                "status": "error",
+                "message": "account is not in write allowlist",
+                "account": principal_name,
+            },
+            status_code=403,
+        )
+
+    return None
 
 
 @app.route(route="health")
@@ -218,6 +290,10 @@ def get_device(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices/{device_id}", methods=["PATCH"])
 def update_device(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     device_id = req.route_params.get("device_id", "")
 
     try:
@@ -272,6 +348,10 @@ def update_device(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices/{device_id}", methods=["DELETE"])
 def delete_device(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     device_id = req.route_params.get("device_id", "")
 
     try:
@@ -293,6 +373,10 @@ def delete_device(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices/{device_id}/action", methods=["POST"])
 def device_action(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     device_id = req.route_params.get("device_id", "")
     try:
         container = _get_container_client()
@@ -398,6 +482,10 @@ def terminal_state(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices/{device_id}/terminal/open", methods=["POST"])
 def terminal_open(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     device_id = req.route_params.get("device_id", "")
     try:
         body = req.get_json()
@@ -445,6 +533,10 @@ def terminal_open(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices/{device_id}/terminal/command", methods=["POST"])
 def terminal_command(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     device_id = req.route_params.get("device_id", "")
     try:
         body = req.get_json()
@@ -519,6 +611,10 @@ def terminal_command(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices/{device_id}/power/wake", methods=["POST"])
 def power_wake(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     device_id = req.route_params.get("device_id", "")
     try:
         body = req.get_json()
@@ -564,6 +660,10 @@ def power_wake(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices/{device_id}/power/sleep", methods=["POST"])
 def power_sleep(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     device_id = req.route_params.get("device_id", "")
     try:
         container = _get_container_client()
@@ -597,6 +697,10 @@ def power_sleep(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="devices", methods=["POST"])
 def add_device(req: func.HttpRequest) -> func.HttpResponse:
+    auth_error = _require_write_access(req)
+    if auth_error:
+        return auth_error
+
     try:
         body = req.get_json()
     except ValueError:
@@ -605,37 +709,38 @@ def add_device(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400,
         )
 
-    # Accept serial_number as primary onboarding field. id remains supported for compatibility.
+    if not isinstance(body, dict):
+        return _json_response(
+            {"status": "error", "message": "invalid JSON body"},
+            status_code=400,
+        )
+
     serial_number = body.get("serial_number", "")
     if isinstance(serial_number, str):
         serial_number = serial_number.strip()
     else:
         serial_number = ""
 
-    device_id = body.get("id", "").strip()
-    if not device_id and serial_number:
-        device_id = serial_number
-
-    device_name = body.get("name", "").strip()
-
-    if not device_id or not device_name:
+    if not serial_number:
         return _json_response(
-            {"status": "error", "message": "id and name are required"},
+            {"status": "error", "message": "serial_number is required"},
             status_code=400,
         )
 
-    try:
-        provisioning_token = _compute_device_auth_hash(device_id)
-    except RuntimeError as exc:
+    hashed_device_id = _compute_device_auth_hash(serial_number)
+
+    device_name = body.get("name", "").strip()
+
+    if not hashed_device_id or not device_name:
         return _json_response(
-            {"status": "error", "message": str(exc)},
-            status_code=500,
+            {"status": "error", "message": "serial_number and name are required"},
+            status_code=400,
         )
 
     new_item = {
-        "id": device_id,
-        "deviceId": device_id,
-        "device_auth_hash": provisioning_token,
+        "id": hashed_device_id,
+        "deviceId": hashed_device_id,
+        "device_auth_hash": hashed_device_id,
         "name": device_name,
         "status": "offline",
         "firmware": "unknown",
@@ -652,7 +757,7 @@ def add_device(req: func.HttpRequest) -> func.HttpResponse:
         container.create_item(body=new_item)
     except exceptions.CosmosResourceExistsError:
         return _json_response(
-            {"status": "error", "message": f"device '{device_id}' already exists"},
+            {"status": "error", "message": f"device '{hashed_device_id}' already exists"},
             status_code=409,
         )
     except Exception as exc:
@@ -665,23 +770,30 @@ def add_device(req: func.HttpRequest) -> func.HttpResponse:
         {
             "status": "ok",
             "device": _to_device_response(new_item),
-            "provisioning_token": provisioning_token,
         },
         status_code=201,
     )
 
 
-@app.route(route="agent/{device_id}/poll", methods=["POST"])
+@app.route(route="agent/poll", methods=["POST"])
 def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
-    device_id = req.route_params.get("device_id", "")
-    token = req.headers.get("X-Device-Token", "")
+    serial_number = _extract_serial_number(req)
+    if not serial_number:
+        _log_unauthorized_attempt("poll", "", "missing serial_number", req)
+        return _json_response(
+            {"status": "error", "message": "serial_number is required"},
+            status_code=400,
+        )
+
+    device_id = _compute_device_auth_hash(serial_number)
 
     try:
         container = _get_container_client()
         item = container.read_item(item=device_id, partition_key=device_id)
     except exceptions.CosmosResourceNotFoundError:
+        _log_unauthorized_attempt("poll", serial_number, "device not found", req)
         return _json_response(
-            {"status": "error", "message": f"device '{device_id}' not found"},
+            {"status": "error", "message": "device not authorized"},
             status_code=404,
         )
     except Exception as exc:
@@ -689,10 +801,6 @@ def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
             {"status": "error", "message": f"failed to poll commands: {exc}"},
             status_code=500,
         )
-
-    ok, reason = _validate_device_token(item, token)
-    if not ok:
-        return _json_response({"status": "error", "message": reason}, status_code=401)
 
     _ensure_terminal_fields(item)
     queued = [c for c in item.get("terminal_commands", []) if c.get("status") == "queued"]
@@ -719,10 +827,17 @@ def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
     return _json_response(payload, status_code=200)
 
 
-@app.route(route="agent/{device_id}/report", methods=["POST"])
+@app.route(route="agent/report", methods=["POST"])
 def agent_report(req: func.HttpRequest) -> func.HttpResponse:
-    device_id = req.route_params.get("device_id", "")
-    token = req.headers.get("X-Device-Token", "")
+    serial_number = _extract_serial_number(req)
+    if not serial_number:
+        _log_unauthorized_attempt("report", "", "missing serial_number", req)
+        return _json_response(
+            {"status": "error", "message": "serial_number is required"},
+            status_code=400,
+        )
+
+    device_id = _compute_device_auth_hash(serial_number)
 
     try:
         body = req.get_json()
@@ -736,8 +851,9 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
         container = _get_container_client()
         item = container.read_item(item=device_id, partition_key=device_id)
     except exceptions.CosmosResourceNotFoundError:
+        _log_unauthorized_attempt("report", serial_number, "device not found", req)
         return _json_response(
-            {"status": "error", "message": f"device '{device_id}' not found"},
+            {"status": "error", "message": "device not authorized"},
             status_code=404,
         )
     except Exception as exc:
@@ -745,10 +861,6 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
             {"status": "error", "message": f"failed to update device report: {exc}"},
             status_code=500,
         )
-
-    ok, reason = _validate_device_token(item, token)
-    if not ok:
-        return _json_response({"status": "error", "message": reason}, status_code=401)
 
     _ensure_terminal_fields(item)
     item["last_seen_utc"] = _utc_now_iso()

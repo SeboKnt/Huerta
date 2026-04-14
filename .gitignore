@@ -1,0 +1,5 @@
+.vscode
+build
+eim_config.toml
+sdkconfig
+.env

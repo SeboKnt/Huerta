@@ -464,12 +464,12 @@
       <h2>Onboard ESP32</h2>
       <form id="onboardForm">
         <div class="form-group">
-          <label for="deviceId">Device ID *</label>
+          <label for="deviceId">Serial number *</label>
           <input
             type="text"
             id="deviceId"
             name="deviceId"
-            placeholder="e.g. esp32-garden-03"
+            placeholder="e.g. D4D4DA5A9120"
             required
           />
         </div>
@@ -925,7 +925,7 @@
         const response = await fetch("/devices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: deviceId, serial_number: deviceId, name: deviceName })
+          body: JSON.stringify({ serial_number: deviceId, name: deviceName })
         });
         const data = await response.json();
 
@@ -934,9 +934,6 @@
         }
 
         log(`New device '${deviceId}' created successfully.`);
-        if (data.provisioning_token) {
-          log(`Provisioning token for ${deviceId}: ${data.provisioning_token}`);
-        }
         modal.classList.remove("open");
         onboardForm.reset();
         await loadDevices();
