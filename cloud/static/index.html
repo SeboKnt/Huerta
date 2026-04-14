@@ -558,6 +558,29 @@
       return `<span class="chip ${safe}">${safe}</span>`;
     }
 
+    function redirectToMicrosoftLogin() {
+      const returnUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const loginUrl = `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnUrl)}`;
+      window.location.href = loginUrl;
+    }
+
+    async function parseApiResponse(response) {
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (error) {
+        data = {};
+      }
+
+      if (response.status === 401) {
+        log("Authentication required. Redirecting to Microsoft login...");
+        redirectToMicrosoftLogin();
+        throw new Error("authentication redirect");
+      }
+
+      return data;
+    }
+
     async function refreshCosmosIndicator() {
       try {
         const response = await fetch("/health", { method: "GET" });
@@ -597,7 +620,7 @@
 
       try {
         const response = await fetch("/devices", { method: "GET" });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) {
           throw new Error(data.message || "API error");
         }
@@ -612,7 +635,7 @@
 
         tableBody.innerHTML = devices.map((d) => `
           <tr>
-            <td><strong>${d.name || d.id}</strong><br><small>${d.id}</small></td>
+            <td><strong>${d.name || "Unnamed device"}</strong></td>
             <td>${statusChip(d.status)}</td>
             <td>${d.firmware || "-"}</td>
             <td>${d.ip || "-"}</td>
@@ -653,7 +676,7 @@
           const response = await fetch(`/devices/${deviceId}`, {
             method: "DELETE"
           });
-          const data = await response.json();
+          const data = await parseApiResponse(response);
           if (!response.ok) {
             throw new Error(data.message || "Delete failed");
           }
@@ -683,7 +706,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name: trimmed })
           });
-          const data = await response.json();
+          const data = await parseApiResponse(response);
           if (!response.ok) {
             throw new Error(data.message || "Rename failed");
           }
@@ -712,7 +735,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) {
           throw new Error(data.message || "Action failed");
         }
@@ -741,7 +764,7 @@
 
       try {
         const response = await fetch(`/devices/${activeTerminalDeviceId}/terminal`, { method: "GET" });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) {
           throw new Error(data.message || "Failed to read terminal state");
         }
@@ -807,7 +830,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ command })
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) {
           throw new Error(data.message || "Command queue failed");
         }
@@ -830,7 +853,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ keep_awake_seconds: 900 })
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) {
           throw new Error(data.message || "Wake request failed");
         }
@@ -850,7 +873,7 @@
         const response = await fetch(`/devices/${activeTerminalDeviceId}/power/sleep`, {
           method: "POST"
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) {
           throw new Error(data.message || "Sleep request failed");
         }
@@ -943,7 +966,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ serial_number: deviceId, name: deviceName })
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
 
         if (!response.ok) {
           throw new Error(data.message || "Onboarding failed");
