@@ -40,6 +40,11 @@ jobs:
           pip install -r ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/requirements.txt
           pip install -r ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/requirements.txt --target="${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/.python_packages/lib/site-packages"
 
+      - name: Stamp build metadata
+        run: |
+          BUILD_INFO="${GITHUB_SHA::7} (run ${GITHUB_RUN_NUMBER})"
+          sed -i "s|__BUILD_INFO__|${BUILD_INFO}|g" ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/function_app.py
+
       # Optional: Add step to run tests here
 
       - name: Zip artifact for deployment

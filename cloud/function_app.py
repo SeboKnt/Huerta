@@ -21,6 +21,7 @@ _COSMOS_KEY = os.getenv("COSMOS_KEY")
 _COSMOS_DATABASE = os.getenv("COSMOS_DATABASE")
 _COSMOS_CONTAINER = os.getenv("COSMOS_CONTAINER")
 _DEVICE_TOKEN_SECRET = os.getenv("DEVICE_TOKEN_SECRET")
+_BUILD_INFO = os.getenv("APP_BUILD_INFO", "__BUILD_INFO__")
 _ALLOWED_WRITE_ACCOUNTS = {
     entry.strip().lower()
     for entry in os.getenv("ALLOWED_WRITE_ACCOUNTS", "").replace(";", ",").split(",")
@@ -154,44 +155,55 @@ def _json_response(payload: dict, status_code: int = 200) -> func.HttpResponse:
 
 def _extract_identity(req: func.HttpRequest):
     principal_name = (req.headers.get("X-MS-CLIENT-PRINCIPAL-NAME") or "").strip().lower()
+    principal_id = (req.headers.get("X-MS-CLIENT-PRINCIPAL-ID") or "").strip().lower()
     identity_provider = (req.headers.get("X-MS-CLIENT-PRINCIPAL-IDP") or "").strip().lower()
 
     encoded_principal = req.headers.get("X-MS-CLIENT-PRINCIPAL") or ""
-    if encoded_principal and (not principal_name or not identity_provider):
+    if encoded_principal and (not principal_name or not principal_id or not identity_provider):
         try:
             decoded = base64.b64decode(encoded_principal)
             parsed = json.loads(decoded.decode("utf-8"))
             if not principal_name:
                 principal_name = str(parsed.get("userDetails", "")).strip().lower()
+            if not principal_id:
+                principal_id = str(parsed.get("userId", "")).strip().lower()
             if not identity_provider:
                 identity_provider = str(parsed.get("identityProvider", "")).strip().lower()
         except Exception:
             pass
 
-    return principal_name, identity_provider
+    return principal_name, principal_id, identity_provider
 
 
 def _auth_diagnostics(req: func.HttpRequest) -> dict:
-    principal_name, identity_provider = _extract_identity(req)
+    principal_name, principal_id, identity_provider = _extract_identity(req)
     return {
         "principal_name": principal_name,
+        "principal_id": principal_id,
         "identity_provider": identity_provider,
         "header_present": {
             "x_ms_client_principal": bool(req.headers.get("X-MS-CLIENT-PRINCIPAL")),
             "x_ms_client_principal_name": bool(req.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")),
+            "x_ms_client_principal_id": bool(req.headers.get("X-MS-CLIENT-PRINCIPAL-ID")),
             "x_ms_client_principal_idp": bool(req.headers.get("X-MS-CLIENT-PRINCIPAL-IDP")),
         },
         "allowlist_configured": bool(_ALLOWED_WRITE_ACCOUNTS),
-        "allowlist_entries": sorted(list(_ALLOWED_WRITE_ACCOUNTS)),
     }
+
+
+def _is_allowed_write_identity(principal_name: str, principal_id: str) -> bool:
+    if not _ALLOWED_WRITE_ACCOUNTS:
+        return True
+    return principal_name in _ALLOWED_WRITE_ACCOUNTS or principal_id in _ALLOWED_WRITE_ACCOUNTS
 
 
 def _require_write_access(req: func.HttpRequest):
     diagnostics = _auth_diagnostics(req)
     principal_name = diagnostics["principal_name"]
+    principal_id = diagnostics["principal_id"]
     identity_provider = diagnostics["identity_provider"]
 
-    if not principal_name:
+    if not principal_name and not principal_id:
         return _json_response(
             {
                 "status": "error",
@@ -214,17 +226,18 @@ def _require_write_access(req: func.HttpRequest):
     # If no allowlist is configured, any authenticated Microsoft account may write.
     if not _ALLOWED_WRITE_ACCOUNTS:
         logging.warning(
-            "ALLOWED_WRITE_ACCOUNTS is not set; allowing write access for authenticated Microsoft user '%s'",
-            principal_name,
+            "ALLOWED_WRITE_ACCOUNTS is not set; allowing write access for authenticated Microsoft user '%s' (%s)",
+            principal_name or "<missing-name>",
+            principal_id or "<missing-id>",
         )
         return None
 
-    if principal_name not in _ALLOWED_WRITE_ACCOUNTS:
+    if not _is_allowed_write_identity(principal_name, principal_id):
         return _json_response(
             {
                 "status": "error",
                 "message": "account is not in write allowlist",
-                "account": principal_name,
+                "account": principal_name or principal_id,
                 "auth_debug": diagnostics,
             },
             status_code=403,
@@ -237,17 +250,14 @@ def _require_write_access(req: func.HttpRequest):
 def auth_debug(req: func.HttpRequest) -> func.HttpResponse:
     diagnostics = _auth_diagnostics(req)
     diagnostics["allowed_write"] = (
-        bool(diagnostics["principal_name"])
+        bool(diagnostics["principal_name"] or diagnostics["principal_id"])
         and (
             (not diagnostics["identity_provider"])
             or diagnostics["identity_provider"] in {"aad", "microsoft", "entra"}
         )
-        and (
-            (not diagnostics["allowlist_configured"])
-            or diagnostics["principal_name"] in _ALLOWED_WRITE_ACCOUNTS
-        )
+        and _is_allowed_write_identity(diagnostics["principal_name"], diagnostics["principal_id"])
     )
-    return _json_response({"status": "ok", "auth": diagnostics}, status_code=200)
+    return _json_response({"status": "ok", "build": _BUILD_INFO, "auth": diagnostics}, status_code=200)
 
 
 @app.route(route="health")
@@ -268,6 +278,7 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
         "status": "ok",
         "service": "Huerta Function",
         "message": "Azure Function is running",
+        "build": _BUILD_INFO,
         "cosmos_configured": configured,
         "cosmos_connected": cosmos_connected,
     }

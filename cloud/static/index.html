@@ -204,6 +204,13 @@
       white-space: pre-wrap;
     }
 
+    .build-info {
+      margin-top: 10px;
+      text-align: right;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
     .modal {
       display: none;
       position: fixed;
@@ -457,6 +464,7 @@
     </section>
 
     <pre id="log" class="log">Ready.</pre>
+    <div class="build-info">Build: <span id="buildInfoText">loading...</span></div>
   </main>
 
   <div id="onboardModal" class="modal">
@@ -522,6 +530,7 @@
     const countBadge = document.getElementById("deviceCount");
     const cosmosDot = document.getElementById("cosmosDot");
     const cosmosText = document.getElementById("cosmosText");
+    const buildInfoText = document.getElementById("buildInfoText");
     const reloadBtn = document.getElementById("reloadBtn");
     const logBox = document.getElementById("log");
     const terminalModal = document.getElementById("terminalModal");
@@ -554,6 +563,12 @@
         const response = await fetch("/health", { method: "GET" });
         const data = await response.json();
 
+        if (typeof data.build === "string" && data.build.trim()) {
+          buildInfoText.textContent = data.build;
+        } else {
+          buildInfoText.textContent = "unknown";
+        }
+
         if (response.ok && data.cosmos_connected === true) {
           cosmosDot.classList.remove("down");
           cosmosDot.classList.add("up");
@@ -572,6 +587,7 @@
         cosmosDot.classList.remove("up");
         cosmosDot.classList.add("down");
         cosmosText.textContent = "Cosmos: unreachable";
+        buildInfoText.textContent = "unavailable";
       }
     }
 
