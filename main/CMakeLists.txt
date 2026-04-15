@@ -31,9 +31,9 @@ string(REPLACE "\\" "\\\\" APP_CLOUD_BASE_URL_ESC "${APP_CLOUD_BASE_URL}")
 string(REPLACE "\"" "\\\"" APP_CLOUD_BASE_URL_ESC "${APP_CLOUD_BASE_URL_ESC}")
 
 idf_component_register(
-	SRCS "shell.c" "wifi.c" "cloud_client.c" "main.c"
+	SRCS "shell.c" "relay.c" "wifi.c" "cloud_client.c" "main.c"
 	INCLUDE_DIRS "."
-	REQUIRES esp_wifi esp_event esp_netif nvs_flash esp_http_client mbedtls
+	REQUIRES esp_wifi esp_event esp_netif nvs_flash esp_http_client esp_driver_gpio esp_timer mbedtls
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE

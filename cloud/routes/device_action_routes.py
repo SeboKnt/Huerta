@@ -54,43 +54,21 @@ def device_action(req: func.HttpRequest) -> func.HttpResponse:
         item["identify_requested"] = True
         item["identify_duration_sec"] = duration_sec
         item["identify_requested_at_utc"] = _utc_now_iso()
-    elif action == "water_now":
-        duration_sec = body.get("duration_sec", 30)
-        if not isinstance(duration_sec, int) or duration_sec < 1 or duration_sec > 3600:
-            return _json_response(
-                {"status": "error", "message": "duration_sec must be an integer between 1 and 3600"},
-                status_code=400,
-            )
-
-        item["watering_requested"] = True
-        item["watering_duration_sec"] = duration_sec
-        item["watering_request_id"] = str(uuid.uuid4())
-        item["watering_requested_at_utc"] = _utc_now_iso()
-    elif action == "relay_debug_on":
+    elif action in ("relay_debug_on", "relay_on"):
         item["relay_debug_requested"] = True
         item["relay_debug_state"] = "on"
         item["relay_debug_request_id"] = str(uuid.uuid4())
         item["relay_debug_requested_at_utc"] = _utc_now_iso()
-    elif action == "relay_debug_off":
+    elif action in ("relay_debug_off", "relay_off"):
         item["relay_debug_requested"] = True
         item["relay_debug_state"] = "off"
         item["relay_debug_request_id"] = str(uuid.uuid4())
         item["relay_debug_requested_at_utc"] = _utc_now_iso()
-    elif action == "set_watering":
-        return _json_response(
-            {"status": "error", "message": "use 'water_now' with duration_sec instead of set_watering"},
-            status_code=400,
-        )
-    elif action == "toggle_watering":
-        return _json_response(
-            {"status": "error", "message": "use 'water_now' with duration_sec instead of toggle_watering"},
-            status_code=400,
-        )
     else:
         return _json_response(
             {
                 "status": "error",
-                "message": "unsupported action, use 'restart', 'identify', 'water_now', 'relay_debug_on' or 'relay_debug_off'",
+                "message": "unsupported action, use 'restart', 'identify', 'relay_on' or 'relay_off'",
             },
             status_code=400,
         )

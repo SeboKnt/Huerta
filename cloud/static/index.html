@@ -193,6 +193,34 @@
       flex-wrap: wrap;
     }
 
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(110px, 1fr));
+      gap: 6px;
+      min-width: 230px;
+    }
+
+    .actions-grid button {
+      padding: 7px 9px;
+      font-size: 0.84rem;
+    }
+
+    .btn-soft {
+      background: #f7f3e8;
+    }
+
+    .btn-danger {
+      background: #fff3f2;
+      border-color: #ffd9d6;
+      color: #8a1c13;
+    }
+
+    .btn-accent {
+      background: #e8f7f5;
+      border-color: #bde7e2;
+      color: #0e5f58;
+    }
+
     .action-btn {
       padding: 7px 10px;
     }
@@ -535,13 +563,12 @@
             <th>Status</th>
             <th>Firmware</th>
             <th>Last Seen</th>
-            <th>Watering</th>
             <th>Telemetry</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="deviceTable">
-          <tr><td colspan="7">Loading data...</td></tr>
+          <tr><td colspan="6">Loading data...</td></tr>
         </tbody>
       </table>
     </section>
@@ -669,15 +696,6 @@
       return `${ram} | ${cpu} | ${uptime}`;
     }
 
-    function formatWatering(device) {
-      if (!device || device.watering_requested !== true) {
-        return "idle";
-      }
-
-      const duration = Number.isInteger(device.watering_duration_sec) && device.watering_duration_sec > 0 ? device.watering_duration_sec : 0;
-      return duration > 0 ? `pending ${duration}s` : "pending";
-    }
-
     function redirectToMicrosoftLogin() {
       const returnUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       const loginUrl = `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnUrl)}`;
@@ -749,34 +767,28 @@
         countBadge.textContent = `${devices.length} devices connected`;
 
         if (devices.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="7">No devices available.</td></tr>`;
+          tableBody.innerHTML = `<tr><td colspan="6">No devices available.</td></tr>`;
           return;
         }
 
         tableBody.innerHTML = devices.map((d) => {
           const status = d.connected ? "online" : (d.status === "restarting" ? "restarting" : "offline");
-          const wateringDuration = Number.isInteger(d.watering_duration_sec) && d.watering_duration_sec > 0 ? d.watering_duration_sec : 30;
           return `
           <tr>
             <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong></td>
             <td>${statusChip(status)}</td>
             <td>${d.firmware || "-"}</td>
             <td><span class="last-seen">${d.last_seen_utc || "-"}</span></td>
-            <td>${formatWatering(d)}</td>
             <td><span class="telemetry-small">${formatTelemetry(d.telemetry)}</span></td>
             <td>
-              <div class="actions">
+              <div class="actions-grid">
                 <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
-                <button class="details-open-btn" type="button" data-device-details="true" data-device="${d.id}">Details</button>
-                <input class="action-input" type="number" min="1" max="3600" step="1" value="${wateringDuration}" data-water-seconds-for="${d.id}" aria-label="Watering seconds for ${d.id}">
-                <button class="action-btn" type="button" data-water-now="true" data-device="${d.id}">Water</button>
-                <select class="action-select" data-device="${d.id}">
-                  <option value="delete_device">Delete Device</option>
-                  <option value="restart">Restart</option>
-                  <option value="relay_debug_on">Relay Debug On</option>
-                  <option value="relay_debug_off">Relay Debug Off</option>
-                </select>
-                <button type="button" data-action-run="true" data-device="${d.id}">Run</button>
+                <button class="details-open-btn btn-soft" type="button" data-device-details="true" data-device="${d.id}">Details</button>
+                <button class="btn-soft" type="button" data-action="identify" data-device="${d.id}">Identify</button>
+                <button class="btn-accent" type="button" data-action="relay_on" data-device="${d.id}">Relay ON</button>
+                <button class="btn-soft" type="button" data-action="relay_off" data-device="${d.id}">Relay OFF</button>
+                <button class="btn-soft" type="button" data-action="restart" data-device="${d.id}">Restart</button>
+                <button class="btn-danger" type="button" data-action="delete_device" data-device="${d.id}">Delete</button>
               </div>
             </td>
           </tr>
@@ -844,9 +856,9 @@
       let body;
       if (action === "restart") {
         body = { action: "restart" };
-      } else if (action === "water_now") {
-        body = { action: "water_now", ...extraBody };
-      } else if (action === "relay_debug_on" || action === "relay_debug_off") {
+      } else if (action === "identify") {
+        body = { action: "identify", duration_sec: 15 };
+      } else if (action === "relay_on" || action === "relay_off") {
         body = { action };
       } else {
         return;
@@ -1030,27 +1042,13 @@
         return;
       }
 
-      const waterBtn = event.target.closest("button[data-water-now]");
-      if (waterBtn) {
-        const deviceId = waterBtn.getAttribute("data-device");
-        const durationInput = tableBody.querySelector(`input[data-water-seconds-for="${deviceId}"]`);
-        const durationSec = durationInput ? parseInt(durationInput.value, 10) : NaN;
-        if (!deviceId || !Number.isInteger(durationSec) || durationSec < 1 || durationSec > 3600) {
-          log("Watering duration must be between 1 and 3600 seconds.");
-          return;
-        }
-        await sendAction(deviceId, "water_now", { duration_sec: durationSec });
-        return;
-      }
-
-      const btn = event.target.closest("button[data-action-run]");
+      const btn = event.target.closest("button[data-action]");
       if (!btn) {
         return;
       }
 
       const deviceId = btn.getAttribute("data-device");
-      const select = tableBody.querySelector(`select.action-select[data-device="${deviceId}"]`);
-      const action = select ? select.value : "";
+      const action = btn.getAttribute("data-action") || "";
       if (!deviceId || !action) {
         return;
       }

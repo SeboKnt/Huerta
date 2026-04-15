@@ -1,12 +1,23 @@
 import azure.functions as func
+from datetime import datetime, timezone
 
 from core.app import app
 from core.auth import _compute_device_auth_hash, _log_unauthorized_attempt
 from core.db import _get_container_client
 from core.device_view import _ensure_terminal_fields, _to_device_response
 from core.http import _json_response
-from core.time_utils import _utc_now_iso
+from core.time_utils import _parse_utc, _utc_now_iso
 from services.telemetry_service import _extract_telemetry, _store_telemetry
+
+
+def _sync_keep_awake_window(item: dict) -> None:
+    keep_until = _parse_utc(item.get("keep_awake_until_utc", ""))
+    if keep_until is None:
+        return
+
+    if keep_until <= datetime.now(timezone.utc):
+        item["wake_requested"] = False
+        item["terminal_session_active"] = False
 
 
 @app.route(route="agent/poll", methods=["POST"])
@@ -35,6 +46,7 @@ def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
 
     _ensure_terminal_fields(item)
     _store_telemetry(item, _extract_telemetry(body))
+    _sync_keep_awake_window(item)
 
     queued = [c for c in item.get("terminal_commands", []) if c.get("status") == "queued"]
     command_payload = [dict(c) for c in queued]
@@ -69,9 +81,6 @@ def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
             "keep_awake_until_utc": item.get("keep_awake_until_utc", ""),
             "identify_requested": bool(item.get("identify_requested", False)),
             "identify_duration_sec": int(item.get("identify_duration_sec", 15)),
-            "watering_requested": bool(item.get("watering_requested", False)),
-            "watering_duration_sec": int(item.get("watering_duration_sec", 0) or 0),
-            "watering_request_id": item.get("watering_request_id", ""),
             "relay_debug_requested": bool(item.get("relay_debug_requested", False)),
             "relay_debug_state": item.get("relay_debug_state", ""),
             "relay_debug_request_id": item.get("relay_debug_request_id", ""),
@@ -119,6 +128,7 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
 
     if body.get("deep_sleep_entering") is True:
         item["terminal_session_active"] = False
+        item["wake_requested"] = False
         item["deep_sleep_requested"] = False
 
     if isinstance(body.get("identify_state"), bool):
@@ -128,13 +138,6 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
         else:
             item["identify_duration_sec"] = int(body.get("identify_duration_sec", 15))
             item["identify_requested_at_utc"] = _utc_now_iso()
-
-    watering_done_request_id = body.get("watering_done_request_id", "")
-    if isinstance(watering_done_request_id, str) and watering_done_request_id:
-        if watering_done_request_id == item.get("watering_request_id", ""):
-            item["watering_requested"] = False
-            item["watering_request_id"] = ""
-            item["watering_duration_sec"] = 0
 
     relay_debug_done_request_id = body.get("relay_debug_done_request_id", "")
     if isinstance(relay_debug_done_request_id, str) and relay_debug_done_request_id:
