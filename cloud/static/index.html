@@ -534,7 +534,6 @@
             <th>Device</th>
             <th>Status</th>
             <th>Firmware</th>
-            <th>IP</th>
             <th>Last Seen</th>
             <th>Watering</th>
             <th>Telemetry</th>
@@ -737,7 +736,7 @@
 
     async function loadDevices() {
       await refreshCosmosIndicator();
-      tableBody.innerHTML = `<tr><td colspan="8">Loading data...</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="7">Loading data...</td></tr>`;
 
       try {
         const response = await fetch("/devices", { method: "GET" });
@@ -750,19 +749,18 @@
         countBadge.textContent = `${devices.length} devices connected`;
 
         if (devices.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="8">No devices available.</td></tr>`;
+          tableBody.innerHTML = `<tr><td colspan="7">No devices available.</td></tr>`;
           return;
         }
 
         tableBody.innerHTML = devices.map((d) => {
-          const status = d.status === "restarting" ? "restarting" : (d.connected ? "online" : "offline");
+          const status = d.connected ? "online" : (d.status === "restarting" ? "restarting" : "offline");
           const wateringDuration = Number.isInteger(d.watering_duration_sec) && d.watering_duration_sec > 0 ? d.watering_duration_sec : 30;
           return `
           <tr>
             <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong></td>
             <td>${statusChip(status)}</td>
             <td>${d.firmware || "-"}</td>
-            <td>${d.ip || "-"}</td>
             <td><span class="last-seen">${d.last_seen_utc || "-"}</span></td>
             <td>${formatWatering(d)}</td>
             <td><span class="telemetry-small">${formatTelemetry(d.telemetry)}</span></td>
@@ -772,11 +770,11 @@
                 <button class="details-open-btn" type="button" data-device-details="true" data-device="${d.id}">Details</button>
                 <input class="action-input" type="number" min="1" max="3600" step="1" value="${wateringDuration}" data-water-seconds-for="${d.id}" aria-label="Watering seconds for ${d.id}">
                 <button class="action-btn" type="button" data-water-now="true" data-device="${d.id}">Water</button>
-                <button class="action-btn" type="button" data-relay-debug="on" data-device="${d.id}">Relay On</button>
-                <button class="action-btn" type="button" data-relay-debug="off" data-device="${d.id}">Relay Off</button>
                 <select class="action-select" data-device="${d.id}">
                   <option value="delete_device">Delete Device</option>
                   <option value="restart">Restart</option>
+                  <option value="relay_debug_on">Relay Debug On</option>
+                  <option value="relay_debug_off">Relay Debug Off</option>
                 </select>
                 <button type="button" data-action-run="true" data-device="${d.id}">Run</button>
               </div>
@@ -787,7 +785,7 @@
 
         log("Device list loaded successfully.");
       } catch (error) {
-        tableBody.innerHTML = `<tr><td colspan="8">Error loading data: ${String(error)}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="7">Error loading data: ${String(error)}</td></tr>`;
         countBadge.textContent = "Error";
         log(`Error: ${String(error)}`);
       }
@@ -914,11 +912,15 @@
       terminalModal.classList.add("open");
 
       try {
-        await fetch(`/devices/${deviceId}/terminal/open`, {
+        const response = await fetch(`/devices/${deviceId}/terminal/open`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ keep_awake_seconds: 900 })
         });
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to open terminal session");
+        }
       } catch (error) {
         log(`Failed to request terminal session: ${String(error)}`);
       }
@@ -1038,17 +1040,6 @@
           return;
         }
         await sendAction(deviceId, "water_now", { duration_sec: durationSec });
-        return;
-      }
-
-      const relayBtn = event.target.closest("button[data-relay-debug]");
-      if (relayBtn) {
-        const deviceId = relayBtn.getAttribute("data-device");
-        const relayState = relayBtn.getAttribute("data-relay-debug");
-        if (!deviceId || (relayState !== "on" && relayState !== "off")) {
-          return;
-        }
-        await sendAction(deviceId, `relay_debug_${relayState}`);
         return;
       }
 

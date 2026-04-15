@@ -37,10 +37,17 @@ def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
     _store_telemetry(item, _extract_telemetry(body))
 
     queued = [c for c in item.get("terminal_commands", []) if c.get("status") == "queued"]
+    command_payload = [dict(c) for c in queued]
+    # Queue semantics: once fetched by device, commands are removed from storage.
+    # This prevents stale pending commands after reboot/offline periods.
+    item["terminal_commands"] = []
 
     item["last_seen_utc"] = _utc_now_iso()
     if isinstance(body.get("status"), str):
         item["status"] = body["status"]
+    elif item.get("status") == "restarting":
+        # Clear stale restart status once the device polls again.
+        item["status"] = "online"
     if isinstance(body.get("ip"), str):
         item["ip"] = body["ip"]
     if isinstance(body.get("firmware"), str):
@@ -54,7 +61,7 @@ def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
     payload = {
         "status": "ok",
         "device": _to_device_response(item),
-        "commands": queued,
+        "commands": command_payload,
         "control": {
             "wake_requested": bool(item.get("wake_requested", False)),
             "deep_sleep_requested": bool(item.get("deep_sleep_requested", False)),
@@ -102,6 +109,9 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
 
     if isinstance(body.get("status"), str):
         item["status"] = body["status"]
+    elif item.get("status") == "restarting":
+        # Clear stale restart status once the device reports again.
+        item["status"] = "online"
     if isinstance(body.get("ip"), str):
         item["ip"] = body["ip"]
     if isinstance(body.get("firmware"), str):
@@ -151,6 +161,10 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
             if cmd.get("id") in executed_set:
                 cmd["status"] = "done"
                 cmd["done_at_utc"] = _utc_now_iso()
+
+    # Keep queue clean across boots/reconnects; commands are ephemeral.
+    if isinstance(item.get("terminal_commands"), list):
+        item["terminal_commands"] = []
 
     if body.get("identify_done") is True:
         item["identify_requested"] = False

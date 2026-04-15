@@ -32,6 +32,7 @@ def terminal_state(req: func.HttpRequest) -> func.HttpResponse:
     _ensure_terminal_fields(item)
     output = item.get("terminal_output", [])
     commands = item.get("terminal_commands", [])
+    queued_commands = [cmd for cmd in commands if cmd.get("status") == "queued"]
     payload = {
         "status": "ok",
         "device": _to_device_response(item),
@@ -39,7 +40,7 @@ def terminal_state(req: func.HttpRequest) -> func.HttpResponse:
             "connected": _is_connected(item),
             "session_active": bool(item.get("terminal_session_active", False)),
             "keep_awake_until_utc": item.get("keep_awake_until_utc", ""),
-            "pending_commands": len(commands),
+            "pending_commands": len(queued_commands),
             "output": output[-80:],
         },
     }
@@ -168,7 +169,7 @@ def terminal_command(req: func.HttpRequest) -> func.HttpResponse:
         {
             "status": "ok",
             "queued": True,
-            "pending_commands": len(item["terminal_commands"]),
+            "pending_commands": len([c for c in item["terminal_commands"] if c.get("status") == "queued"]),
             "device": _to_device_response(item),
         },
         status_code=202,

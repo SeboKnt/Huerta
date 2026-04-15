@@ -1,4 +1,9 @@
+import os
+
 from core.app import app
+
+# Keep the historic placeholder in this file so existing CI replacement still works.
+os.environ.setdefault("APP_BUILD_INFO", "__BUILD_INFO__")
 
 # Import route modules for decorator registration.
 import routes.agent_routes  # noqa: F401
