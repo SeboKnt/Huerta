@@ -172,10 +172,39 @@
       box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
     }
 
+    .device-name {
+      cursor: text;
+    }
+
+    .device-name:hover {
+      text-decoration: underline;
+      text-decoration-style: dotted;
+    }
+
+    .last-seen {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
     .actions {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      padding: 7px 10px;
+    }
+
+    .action-input {
+      width: 76px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 7px 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      background: #ffffff;
     }
 
     .action-select {
@@ -397,6 +426,45 @@
       border-color: #0f172a;
     }
 
+    .details-open-btn {
+      background: #f4f1e8;
+    }
+
+    .telemetry-small {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.25;
+    }
+
+    .details-json {
+      margin: 12px 0 0;
+      padding: 12px;
+      background: #111317;
+      color: #e9edf3;
+      border-radius: 10px;
+      border: 1px solid #2a2f37;
+      min-height: 220px;
+      max-height: 360px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.84rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+    }
+
+    .status-online {
+      color: var(--ok);
+    }
+
+    .status-offline {
+      color: var(--danger);
+    }
+
+    .status-restarting {
+      color: #855b00;
+    }
+
     @keyframes rise {
       from {
         opacity: 0;
@@ -469,6 +537,7 @@
             <th>IP</th>
             <th>Last Seen</th>
             <th>Watering</th>
+            <th>Telemetry</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -506,6 +575,7 @@
             required
           />
         </div>
+        <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Tip: double-click a device name later to rename it.</p>
         <div class="modal-actions">
           <button type="button" id="cancelBtn">Cancel</button>
           <button type="submit" class="submit">Create</button>
@@ -540,6 +610,17 @@
     </div>
   </div>
 
+  <div id="detailsModal" class="modal">
+    <div class="modal-content" style="max-width: 780px; width: 94%;">
+      <h2 id="detailsTitle">Device details</h2>
+      <div id="detailsMeta" class="terminal-meta">Loading...</div>
+      <pre id="detailsJson" class="details-json">Open a device to inspect its current values.</pre>
+      <div class="modal-actions" style="margin-top: 14px;">
+        <button type="button" id="detailsCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const tableBody = document.getElementById("deviceTable");
     const countBadge = document.getElementById("deviceCount");
@@ -557,6 +638,11 @@
     const terminalInput = document.getElementById("terminalInput");
     const terminalSendBtn = document.getElementById("terminalSendBtn");
     const terminalCloseBtn = document.getElementById("terminalCloseBtn");
+    const detailsModal = document.getElementById("detailsModal");
+    const detailsTitle = document.getElementById("detailsTitle");
+    const detailsMeta = document.getElementById("detailsMeta");
+    const detailsJson = document.getElementById("detailsJson");
+    const detailsCloseBtn = document.getElementById("detailsCloseBtn");
     const wakeBtn = document.getElementById("wakeBtn");
     const sleepBtn = document.getElementById("sleepBtn");
 
@@ -570,7 +656,27 @@
 
     function statusChip(status) {
       const safe = String(status || "unknown");
-      return `<span class="chip ${safe}">${safe}</span>`;
+      return `<span class="chip ${safe} ${safe === "online" ? "status-online" : safe === "offline" ? "status-offline" : safe === "restarting" ? "status-restarting" : ""}">${safe}</span>`;
+    }
+
+    function formatTelemetry(telemetry) {
+      if (!telemetry) {
+        return "-";
+      }
+
+      const ram = typeof telemetry.ram_free_bytes === "number" ? `${Math.round(telemetry.ram_free_bytes / 1024)} KB free` : "RAM -";
+      const cpu = typeof telemetry.cpu_load_pct === "number" ? `CPU ${telemetry.cpu_load_pct}%` : "CPU -";
+      const uptime = typeof telemetry.uptime_sec === "number" ? `up ${telemetry.uptime_sec}s` : "uptime -";
+      return `${ram} | ${cpu} | ${uptime}`;
+    }
+
+    function formatWatering(device) {
+      if (!device || device.watering_requested !== true) {
+        return "idle";
+      }
+
+      const duration = Number.isInteger(device.watering_duration_sec) && device.watering_duration_sec > 0 ? device.watering_duration_sec : 0;
+      return duration > 0 ? `pending ${duration}s` : "pending";
     }
 
     function redirectToMicrosoftLogin() {
@@ -631,7 +737,7 @@
 
     async function loadDevices() {
       await refreshCosmosIndicator();
-      tableBody.innerHTML = `<tr><td colspan="7">Loading data...</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="8">Loading data...</td></tr>`;
 
       try {
         const response = await fetch("/devices", { method: "GET" });
@@ -644,43 +750,77 @@
         countBadge.textContent = `${devices.length} devices connected`;
 
         if (devices.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="7">No devices available.</td></tr>`;
+          tableBody.innerHTML = `<tr><td colspan="8">No devices available.</td></tr>`;
           return;
         }
 
-        tableBody.innerHTML = devices.map((d) => `
+        tableBody.innerHTML = devices.map((d) => {
+          const status = d.status === "restarting" ? "restarting" : (d.connected ? "online" : "offline");
+          const wateringDuration = Number.isInteger(d.watering_duration_sec) && d.watering_duration_sec > 0 ? d.watering_duration_sec : 30;
+          return `
           <tr>
-            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong>${d.name || "Unnamed device"}</strong></td>
-            <td>${statusChip(d.status)}</td>
+            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong></td>
+            <td>${statusChip(status)}</td>
             <td>${d.firmware || "-"}</td>
             <td>${d.ip || "-"}</td>
-            <td>${d.last_seen_utc || "-"}</td>
-            <td>${d.watering_enabled ? "enabled" : "disabled"}</td>
+            <td><span class="last-seen">${d.last_seen_utc || "-"}</span></td>
+            <td>${formatWatering(d)}</td>
+            <td><span class="telemetry-small">${formatTelemetry(d.telemetry)}</span></td>
             <td>
               <div class="actions">
-                <button type="button" data-action-identify="true" data-device="${d.id}">Identify</button>
                 <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
+                <button class="details-open-btn" type="button" data-device-details="true" data-device="${d.id}">Details</button>
+                <input class="action-input" type="number" min="1" max="3600" step="1" value="${wateringDuration}" data-water-seconds-for="${d.id}" aria-label="Watering seconds for ${d.id}">
+                <button class="action-btn" type="button" data-water-now="true" data-device="${d.id}">Water</button>
+                <button class="action-btn" type="button" data-relay-debug="on" data-device="${d.id}">Relay On</button>
+                <button class="action-btn" type="button" data-relay-debug="off" data-device="${d.id}">Relay Off</button>
                 <select class="action-select" data-device="${d.id}">
                   <option value="delete_device">Delete Device</option>
-                  <option value="rename_device">Rename Device</option>
                   <option value="restart">Restart</option>
-                  <option value="toggle_watering">Toggle Watering</option>
                 </select>
                 <button type="button" data-action-run="true" data-device="${d.id}">Run</button>
               </div>
             </td>
           </tr>
-        `).join("");
+        `;
+        }).join("");
 
         log("Device list loaded successfully.");
       } catch (error) {
-        tableBody.innerHTML = `<tr><td colspan="7">Error loading data: ${String(error)}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="8">Error loading data: ${String(error)}</td></tr>`;
         countBadge.textContent = "Error";
         log(`Error: ${String(error)}`);
       }
     }
 
-    async function sendAction(deviceId, action) {
+    async function openDetails(deviceId) {
+      detailsTitle.textContent = `Device ${deviceId}`;
+      detailsMeta.textContent = "Loading current data...";
+      detailsJson.textContent = "Loading...";
+      detailsModal.classList.add("open");
+
+      try {
+        const response = await fetch(`/devices/${deviceId}`, { method: "GET" });
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load device details");
+        }
+
+        const device = data.device || {};
+        const telemetry = device.telemetry || {};
+        detailsMeta.textContent = `Status: ${device.status || "-"} | Connected: ${device.connected ? "yes" : "no"} | Last seen: ${device.last_seen_utc || "-"}`;
+        detailsJson.textContent = JSON.stringify(device, null, 2);
+
+        if (typeof telemetry.ram_free_bytes === "number" || typeof telemetry.cpu_load_pct === "number") {
+          log(`Loaded current data for ${deviceId}.`);
+        }
+      } catch (error) {
+        detailsMeta.textContent = `Error: ${String(error)}`;
+        detailsJson.textContent = String(error);
+      }
+    }
+
+    async function sendAction(deviceId, action, extraBody = {}) {
       if (action === "delete_device") {
         const confirmed = window.confirm(`Delete device '${deviceId}' permanently?`);
         if (!confirmed) {
@@ -703,43 +843,13 @@
         return;
       }
 
-      if (action === "rename_device") {
-        const newName = window.prompt("Enter new device name:");
-        if (newName === null) {
-          return;
-        }
-
-        const trimmed = newName.trim();
-        if (!trimmed) {
-          log("Rename canceled: empty name.");
-          return;
-        }
-
-        try {
-          const response = await fetch(`/devices/${deviceId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: trimmed })
-          });
-          const data = await parseApiResponse(response);
-          if (!response.ok) {
-            throw new Error(data.message || "Rename failed");
-          }
-          log(`Device '${deviceId}' renamed to '${trimmed}'.`);
-          await loadDevices();
-        } catch (error) {
-          log(`Rename failed: ${String(error)}`);
-        }
-        return;
-      }
-
       let body;
       if (action === "restart") {
         body = { action: "restart" };
-      } else if (action === "identify") {
-        body = { action: "identify", duration_sec: 15 };
-      } else if (action === "toggle_watering") {
-        body = { action: "toggle_watering" };
+      } else if (action === "water_now") {
+        body = { action: "water_now", ...extraBody };
+      } else if (action === "relay_debug_on" || action === "relay_debug_off") {
+        body = { action };
       } else {
         return;
       }
@@ -900,21 +1010,45 @@
     }
 
     tableBody.addEventListener("click", async (event) => {
-      const identifyBtn = event.target.closest("button[data-action-identify]");
-      if (identifyBtn) {
-        const deviceId = identifyBtn.getAttribute("data-device");
-        if (deviceId) {
-          await sendAction(deviceId, "identify");
-        }
-        return;
-      }
-
       const terminalBtn = event.target.closest("button[data-terminal-open]");
       if (terminalBtn) {
         const deviceId = terminalBtn.getAttribute("data-device");
         if (deviceId) {
           await openTerminal(deviceId);
         }
+        return;
+      }
+
+      const detailsBtn = event.target.closest("button[data-device-details]");
+      if (detailsBtn) {
+        const deviceId = detailsBtn.getAttribute("data-device");
+        if (deviceId) {
+          await openDetails(deviceId);
+        }
+        return;
+      }
+
+      const waterBtn = event.target.closest("button[data-water-now]");
+      if (waterBtn) {
+        const deviceId = waterBtn.getAttribute("data-device");
+        const durationInput = tableBody.querySelector(`input[data-water-seconds-for="${deviceId}"]`);
+        const durationSec = durationInput ? parseInt(durationInput.value, 10) : NaN;
+        if (!deviceId || !Number.isInteger(durationSec) || durationSec < 1 || durationSec > 3600) {
+          log("Watering duration must be between 1 and 3600 seconds.");
+          return;
+        }
+        await sendAction(deviceId, "water_now", { duration_sec: durationSec });
+        return;
+      }
+
+      const relayBtn = event.target.closest("button[data-relay-debug]");
+      if (relayBtn) {
+        const deviceId = relayBtn.getAttribute("data-device");
+        const relayState = relayBtn.getAttribute("data-relay-debug");
+        if (!deviceId || (relayState !== "on" && relayState !== "off")) {
+          return;
+        }
+        await sendAction(deviceId, `relay_debug_${relayState}`);
         return;
       }
 
@@ -932,8 +1066,44 @@
       await sendAction(deviceId, action);
     });
 
+    tableBody.addEventListener("dblclick", async (event) => {
+      const nameElement = event.target.closest("strong.device-name");
+      if (!nameElement) {
+        return;
+      }
+
+      const deviceId = nameElement.getAttribute("data-device");
+      const currentName = nameElement.textContent || "";
+      const newName = window.prompt("Enter new device name:", currentName);
+      if (newName === null) {
+        return;
+      }
+
+      const trimmed = newName.trim();
+      if (!trimmed || !deviceId) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/devices/${deviceId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed })
+        });
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.message || "Rename failed");
+        }
+        log(`Device renamed to '${trimmed}'.`);
+        await loadDevices();
+      } catch (error) {
+        log(`Rename failed: ${String(error)}`);
+      }
+    });
+
     reloadBtn.addEventListener("click", loadDevices);
     terminalCloseBtn.addEventListener("click", closeTerminal);
+    detailsCloseBtn.addEventListener("click", () => detailsModal.classList.remove("open"));
     terminalSendBtn.addEventListener("click", sendTerminalCommand);
     terminalInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -946,6 +1116,12 @@
     terminalModal.addEventListener("click", (event) => {
       if (event.target === terminalModal) {
         closeTerminal();
+      }
+    });
+
+    detailsModal.addEventListener("click", (event) => {
+      if (event.target === detailsModal) {
+        detailsModal.classList.remove("open");
       }
     });
 
@@ -1006,6 +1182,7 @@
     });
 
     loadDevices();
+    setInterval(loadDevices, 10000);
   </script>
 </body>
 </html>

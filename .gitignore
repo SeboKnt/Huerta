@@ -3,3 +3,14 @@ build
 eim_config.toml
 sdkconfig
 .env
+
+__pycache__/
+*.py[cod]
+.DS_Store
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
