@@ -712,15 +712,12 @@
         <label>Wake Interval (s)<input id="wakeIntervalInput" type="number" min="60" step="60" /></label>
       </div>
       <div class="inline-grid">
-        <label>OTA State<select id="otaStateSelect"><option value="pending">Pending</option><option value="installing">Installing</option><option value="done">Done</option><option value="failed">Failed</option></select></label>
         <label>Firmware Version<input id="firmwareVersionInput" type="text" /></label>
-      </div>
-      <div class="inline-grid">
         <label>Firmware File<input id="firmwareFileInput" type="file" accept=".bin,.elf,.hex,.fw" /></label>
-        <label>Upload Action<button id="uploadFirmwareBtn" type="button" style="margin-top: 20px;">Upload firmware</button></label>
       </div>
       <div class="modal-actions" style="margin-top: 14px;">
         <button type="button" id="detailsCloseBtn">Close</button>
+        <button type="button" id="uploadFirmwareBtn" class="btn-accent">Upload firmware</button>
         <button type="button" id="rollbackFirmwareBtn" class="btn-soft">Rollback</button>
         <button type="button" id="saveConfigBtn" class="submit">Save config</button>
       </div>
@@ -757,7 +754,6 @@
     const wateringDurationInput = document.getElementById("wateringDurationInput");
     const sleepModeSelect = document.getElementById("sleepModeSelect");
     const wakeIntervalInput = document.getElementById("wakeIntervalInput");
-    const otaStateSelect = document.getElementById("otaStateSelect");
     const firmwareVersionInput = document.getElementById("firmwareVersionInput");
     const firmwareFileInput = document.getElementById("firmwareFileInput");
     const uploadFirmwareBtn = document.getElementById("uploadFirmwareBtn");
@@ -949,7 +945,6 @@
         wateringDurationInput.value = config.watering_duration_sec || "";
         sleepModeSelect.value = String(Boolean(config.sleep_mode));
         wakeIntervalInput.value = config.wake_interval_sec || "";
-        otaStateSelect.value = ota.state || "pending";
         firmwareVersionInput.value = ota.version || "";
         detailsMeta.textContent = `Status: ${device.status || "-"} | Connected: ${device.connected ? "yes" : "no"} | Last seen: ${device.last_seen_utc || "-"}`;
         detailsJson.textContent = JSON.stringify({
@@ -1045,7 +1040,6 @@
             sleep_mode: sleepModeSelect.value === "true",
             wake_interval_sec: Number(wakeIntervalInput.value || 600),
           },
-          ota_action: otaStateSelect.value,
           firmware_version: firmwareVersionInput.value.trim(),
           ota_message: `Updated from dashboard at ${new Date().toISOString()}`,
         };
