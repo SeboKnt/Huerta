@@ -1564,6 +1564,74 @@
       border-radius: 50%;
     }
 
+    /* Wetter-Widget Styles */
+    .weather-widget {
+      background: linear-gradient(135deg, rgba(26, 32, 53, 0.65), rgba(11, 15, 25, 0.65));
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+    .weather-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .weather-current {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .weather-temp {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+    .weather-desc {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .weather-forecast {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      text-align: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 12px;
+      overflow-x: auto;
+    }
+    .forecast-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      min-width: 45px;
+    }
+    .forecast-time {
+      color: var(--text-muted);
+    }
+    .forecast-icon {
+      font-size: 18px;
+    }
+    .forecast-temp {
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .forecast-rain {
+      color: #3b82f6;
+      font-weight: 700;
+      font-size: 9px;
+    }
+
     /* KI-Klinik Scanner & Report UI */
     @keyframes scanLineAnimation {
       0% { top: 0%; opacity: 0.8; }
@@ -2201,6 +2269,114 @@
       }
     }
 
+    function getWeatherEmoji(code) {
+      if (code === 0) return { emoji: "☀️", desc: "Sonnig" };
+      if (code <= 3) return { emoji: "🌤️", desc: "Leicht bewölkt" };
+      if (code === 45 || code === 48) return { emoji: "🌫️", desc: "Nebel" };
+      if (code <= 55) return { emoji: "🌧️", desc: "Nieselregen" };
+      if (code <= 65) return { emoji: "🌧️", desc: "Regen" };
+      if (code <= 77) return { emoji: "❄️", desc: "Schnee" };
+      if (code <= 82) return { emoji: "🌦️", desc: "Regenschauer" };
+      if (code <= 99) return { emoji: "⛈️", desc: "Gewitter" };
+      return { emoji: "☁️", desc: "Bewölkt" };
+    }
+
+    async function updateWeatherWidget() {
+      const container = document.getElementById("weatherWidgetContainer");
+      if (!container) return;
+
+      // Find first device with custom lat/lon, default to Frankfurt if none
+      let lat = 50.1107;
+      let lon = 8.6821;
+      let locationName = "Frankfurt (Standard)";
+
+      for (const dev of cachedDevices) {
+        if (dev.plant_context?.latitude && dev.plant_context?.longitude) {
+          lat = dev.plant_context.latitude;
+          lon = dev.plant_context.longitude;
+          locationName = dev.plant_context.room || "Dein Standort";
+          break;
+        }
+      }
+
+      container.innerHTML = `
+        <div class="weather-widget" style="opacity: 0.7;">
+          <div style="font-size:13px; font-weight:700; color:var(--text-muted);">🌤️ Wetter-Daten werden geladen für ${locationName}...</div>
+        </div>
+      `;
+
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability,weathercode&current_weather=true&timezone=auto`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Fehler beim Abruf");
+        const data = await res.json();
+        
+        const cw = data.current_weather || {};
+        const cond = getWeatherEmoji(cw.weathercode);
+        
+        // Find if any device in this location has smart watering enabled and bypass active
+        const bypassActive = cachedDevices.some(d => d.watering_schedule?.smart_bypass_active);
+        
+        // Parse hourly forecast (next 6 hours, stepping by 2)
+        const hourly = data.hourly || {};
+        const nowIndex = new Date().getHours();
+        let forecastHtml = "";
+        
+        for (let i = 0; i < 6; i++) {
+          const index = (nowIndex + i * 2) % 24;
+          const timeStr = `${index}:00`;
+          const tempVal = hourly.temperature_2m ? hourly.temperature_2m[nowIndex + i * 2] : 20;
+          const rainVal = hourly.precipitation_probability ? hourly.precipitation_probability[nowIndex + i * 2] : 0;
+          const codeVal = hourly.weathercode ? hourly.weathercode[nowIndex + i * 2] : 0;
+          const icon = getWeatherEmoji(codeVal).emoji;
+          
+          forecastHtml += `
+            <div class="forecast-item">
+              <span class="forecast-time">${timeStr}</span>
+              <span class="forecast-icon">${icon}</span>
+              <span class="forecast-temp">${tempVal ? tempVal.toFixed(1) : '–'}°C</span>
+              <span class="forecast-rain">${rainVal}% 💧</span>
+            </div>
+          `;
+        }
+
+        container.innerHTML = `
+          <div class="weather-widget">
+            <div class="weather-header">
+              <div class="weather-current">
+                <span style="font-size: 38px;">${cond.emoji}</span>
+                <div>
+                  <div style="font-size: 11px; font-weight:700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Wetterstation (${locationName})</div>
+                  <div class="weather-temp">${cw.temperature ? cw.temperature.toFixed(1) : '–'}°C</div>
+                </div>
+                <div class="weather-desc" style="margin-left: 10px;">${cond.desc}</div>
+              </div>
+              
+              ${bypassActive ? `
+                <div style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; display:flex; align-items:center; gap:6px;">
+                  <span>🌦️ Smart Gießen: Ausgesetzt (Regen angesagt)</span>
+                </div>
+              ` : `
+                <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: #34d399; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700;">
+                  <span>☀️ Smart Gießen: Aktiv</span>
+                </div>
+              `}
+            </div>
+            
+            <div class="weather-forecast">
+              ${forecastHtml}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `
+          <div class="weather-widget">
+            <div style="font-size:12px; color:#ef4444; font-weight:700;">⚠️ Wetterdaten konnten nicht geladen werden (${String(err)})</div>
+          </div>
+        `;
+      }
+    }
+
     function onSearchInput(event) {
       searchQuery = event.target.value;
       renderActiveTab();
@@ -2232,6 +2408,9 @@
             </div>
           </div>
         </div>
+
+        <!-- Live Weather Widget Container -->
+        <div id="weatherWidgetContainer"></div>
       `;
       
       if (devices.length === 0) {
@@ -2313,6 +2492,7 @@
       
       html += `</div>`;
       container.innerHTML = html;
+      updateWeatherWidget();
     }
 
     // Rendering Tab 2: Spaces (Raum-Planer)
