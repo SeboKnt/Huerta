@@ -22,6 +22,82 @@ def _telemetry_summary(item: dict) -> dict:
         "uptime_sec": telemetry.get("uptime_sec"),
         "stack_free_words": telemetry.get("stack_free_words"),
         "reported_at_utc": telemetry.get("reported_at_utc", ""),
+        "water_level_percent": telemetry.get("water_level_percent"),
+    }
+
+
+def _get_irrigation_history(item: dict) -> list[dict]:
+    history = item.get("irrigation_history")
+    if not isinstance(history, list):
+        return []
+    return [entry for entry in history if isinstance(entry, dict)]
+
+
+def _get_device_config(item: dict) -> dict:
+    config = item.get("device_config")
+    if not isinstance(config, dict):
+        config = {}
+    return {
+        "wifi_ssid": config.get("wifi_ssid", ""),
+        "wifi_password": config.get("wifi_password", ""),
+        "report_interval_sec": config.get("report_interval_sec", 60),
+        "watering_duration_sec": config.get("watering_duration_sec", 60),
+        "sleep_mode": config.get("sleep_mode", False),
+        "wake_interval_sec": config.get("wake_interval_sec", 600),
+    }
+
+
+def _get_ota_status(item: dict) -> dict:
+    status = item.get("ota_status")
+    if not isinstance(status, dict):
+        status = {}
+    return {
+        "state": status.get("state", "idle"),
+        "version": status.get("version", ""),
+        "last_updated_utc": status.get("last_updated_utc", ""),
+        "message": status.get("message", ""),
+    }
+
+
+def _get_watering_schedule(item: dict) -> dict:
+    schedule = item.get("watering_schedule")
+    if not isinstance(schedule, dict):
+        schedule = {}
+
+    interval_hours = schedule.get("interval_hours")
+    duration_sec = schedule.get("duration_sec")
+    day = schedule.get("day", "")
+    start_time = schedule.get("start_time", "")
+
+    if not isinstance(interval_hours, int):
+        interval_hours = 0
+    if not isinstance(duration_sec, int):
+        duration_sec = 0
+
+    main_bits = []
+    if interval_hours > 0:
+        main_bits.append(f"Every {interval_hours}h")
+    if duration_sec > 0:
+        main_bits.append(f"for {duration_sec}s")
+
+    detail_bits = []
+    if day:
+        detail_bits.append(day)
+    if start_time:
+        detail_bits.append(f"at {start_time}")
+
+    summary = " ".join(main_bits)
+    if detail_bits:
+        detail_summary = " ".join(detail_bits)
+        summary = f"{summary}; {detail_summary}" if summary else detail_summary
+
+    return {
+        "enabled": bool(schedule.get("enabled", False)),
+        "interval_hours": interval_hours,
+        "duration_sec": duration_sec,
+        "day": day,
+        "start_time": start_time,
+        "summary": summary or "Disabled",
     }
 
 
@@ -95,4 +171,8 @@ def _to_device_response(item: dict) -> dict:
         "telemetry": _telemetry_summary(item),
         "stats": _get_stats(item),
         "alerts": _get_alerts(item),
+        "irrigation_history": _get_irrigation_history(item),
+        "device_config": _get_device_config(item),
+        "ota_status": _get_ota_status(item),
+        "watering_schedule": _get_watering_schedule(item),
     }

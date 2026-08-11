@@ -742,7 +742,15 @@
       const ram = typeof telemetry.ram_free_bytes === "number" ? `${Math.round(telemetry.ram_free_bytes / 1024)} KB free` : "RAM -";
       const cpu = typeof telemetry.cpu_load_pct === "number" ? `CPU ${telemetry.cpu_load_pct}%` : "CPU -";
       const uptime = typeof telemetry.uptime_sec === "number" ? `up ${telemetry.uptime_sec}s` : "uptime -";
-      return `${ram} | ${cpu} | ${uptime}`;
+      const water = typeof telemetry.water_level_percent === "number" ? `Tank ${telemetry.water_level_percent}%` : "Tank -";
+      return `${ram} | ${cpu} | ${uptime} | ${water}`;
+    }
+
+    function formatSchedule(schedule) {
+      if (!schedule || typeof schedule !== "object") {
+        return "No schedule";
+      }
+      return schedule.summary || "No schedule";
     }
 
     function getFilteredDevices(devices) {
@@ -837,13 +845,14 @@
           const alerts = Array.isArray(d.alerts) ? d.alerts : [];
           const alertBadge = alerts.length > 0 ? `<span class="chip" style="margin-left: 8px;">${alerts.length} alert${alerts.length > 1 ? "s" : ""}</span>` : "";
           const uptime = typeof d.stats?.uptime_seconds === "number" ? `${Math.round(d.stats.uptime_seconds / 3600)}h uptime` : "no uptime";
+          const scheduleSummary = formatSchedule(d.watering_schedule);
           return `
           <tr>
             <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong>${alertBadge}</td>
             <td>${statusChip(status)}</td>
             <td>${d.firmware || "-"}</td>
             <td><span class="last-seen">${d.last_seen_utc || "-"}</span></td>
-            <td><span class="telemetry-small">${uptime}<br/>${formatTelemetry(d.telemetry)}</span></td>
+            <td><span class="telemetry-small">${uptime}<br/>${formatTelemetry(d.telemetry)}<br/>Schedule: ${scheduleSummary}</span></td>
             <td>
               <div class="actions-grid">
                 <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
@@ -885,8 +894,19 @@
 
         const device = data.device || {};
         const telemetry = device.telemetry || {};
+        const config = device.device_config || {};
+        const ota = device.ota_status || {};
+        const history = Array.isArray(device.irrigation_history) ? device.irrigation_history : [];
+        const schedule = device.watering_schedule || {};
         detailsMeta.textContent = `Status: ${device.status || "-"} | Connected: ${device.connected ? "yes" : "no"} | Last seen: ${device.last_seen_utc || "-"}`;
-        detailsJson.textContent = JSON.stringify(device, null, 2);
+        detailsJson.textContent = JSON.stringify({
+          ...device,
+          telemetry,
+          device_config: config,
+          ota_status: ota,
+          irrigation_history: history,
+          watering_schedule: schedule,
+        }, null, 2);
 
         if (typeof telemetry.ram_free_bytes === "number" || typeof telemetry.cpu_load_pct === "number") {
           log(`Loaded current data for ${deviceId}.`);
