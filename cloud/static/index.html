@@ -2073,8 +2073,9 @@
 
     // Rendering Tab 2: Spaces (Raum-Planer)
     function renderSpaces(container) {
+      let customRooms = JSON.parse(localStorage.getItem("huerta_rooms") || '["Terrasse", "Schlafzimmer", "Küche", "Wohnzimmer"]');
       const deviceRooms = cachedDevices.map(d => d.plant_context?.room).filter(Boolean);
-      const rooms = [...new Set(["Terrasse", "Schlafzimmer", "Küche", "Wohnzimmer", ...deviceRooms])];
+      const rooms = [...new Set([...customRooms, ...deviceRooms])];
       
       if (!activeRoom || !rooms.includes(activeRoom)) {
         activeRoom = rooms[0] || "Terrasse";
@@ -2375,6 +2376,21 @@
             <p class="sub">Logs der Frontend-Aktionen und Ereignisse im Live-Betrieb.</p>
             <pre id="log" class="log" style="flex-grow:1;"></pre>
           </div>
+
+          <!-- Quota Section -->
+          <div class="system-card" id="quotaCard" style="grid-column: 1 / -1; display:none;">
+            <h3>Azure & Datenbank Kontingente (Free Tier Limits)</h3>
+            <p class="sub" style="margin-bottom:14px;">Auslastung der kostenlosen Freibeträge für Azure Functions und Cosmos DB.</p>
+            <div id="quotaBars">
+              <!-- Dynamically populated progress bars -->
+            </div>
+          </div>
+          
+          <div class="system-card" id="quotaLoginCard" style="grid-column: 1 / -1; display:none; border-color:var(--warning-border); background-color:var(--warning-soft);">
+            <h3>Azure Kontingente</h3>
+            <p class="sub" style="margin-bottom:14px; color:var(--warning);">Melde dich mit Microsoft an, um die verbleibenden Freibeträge anzuzeigen.</p>
+            <button type="button" class="btn-primary" onclick="redirectToMicrosoftLogin()">Mit Microsoft anmelden</button>
+          </div>
         </div>
       `;
       container.innerHTML = html;
@@ -2397,6 +2413,83 @@
       cosmosStatus.className = `health-status-badge ${isUp ? 'online' : 'offline'}`;
       cosmosStatus.textContent = cosmosText.textContent;
       buildInfo.textContent = buildInfoText.textContent;
+
+      loadSystemQuota();
+    }
+
+    async function loadSystemQuota() {
+      const quotaCard = document.getElementById("quotaCard");
+      const quotaLoginCard = document.getElementById("quotaLoginCard");
+      const quotaBars = document.getElementById("quotaBars");
+      
+      if (!quotaCard) return; // Not active tab
+      
+      try {
+        const response = await fetch("/system/quota");
+        if (response.status === 401 || response.status === 403) {
+          quotaLoginCard.style.display = "block";
+          quotaCard.style.display = "none";
+          return;
+        }
+        
+        const data = await response.json();
+        if (data.status !== "ok") {
+          quotaLoginCard.style.display = "block";
+          quotaCard.style.display = "none";
+          return;
+        }
+        
+        quotaLoginCard.style.display = "none";
+        quotaCard.style.display = "block";
+        
+        const fnEx = data.azure_functions.estimated_executions;
+        const fnExLimit = data.azure_functions.free_executions_limit;
+        const fnExPct = data.azure_functions.executions_usage_percentage.toFixed(2);
+        
+        const fnGb = data.azure_functions.estimated_gb_seconds;
+        const fnGbLimit = data.azure_functions.free_gb_seconds_limit;
+        const fnGbPct = data.azure_functions.gb_seconds_usage_percentage.toFixed(2);
+        
+        const dbSize = data.cosmos_db.size_kb;
+        const dbSizeLimit = data.cosmos_db.quota_kb;
+        const dbSizePct = data.cosmos_db.usage_percentage.toFixed(2);
+        const dbCount = data.cosmos_db.document_count;
+        
+        quotaBars.innerHTML = `
+          <div class="quota-item" style="margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px;">
+              <span>Azure Functions Ausführungen (Monatlich)</span>
+              <span>${fnEx.toLocaleString()} / ${fnExLimit.toLocaleString()} (${fnExPct}%)</span>
+            </div>
+            <div style="width:100%; height:12px; background-color:var(--chip); border-radius:6px; overflow:hidden;">
+              <div style="width:${fnExPct}%; height:100%; background-color:#10b981; border-radius:6px;"></div>
+            </div>
+          </div>
+          
+          <div class="quota-item" style="margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px;">
+              <span>Azure Functions Rechenleistung (GB-Sekunden)</span>
+              <span>${fnGb.toLocaleString(undefined, {maximumFractionDigits: 1})} / ${fnGbLimit.toLocaleString()} (${fnGbPct}%)</span>
+            </div>
+            <div style="width:100%; height:12px; background-color:var(--chip); border-radius:6px; overflow:hidden;">
+              <div style="width:${fnGbPct}%; height:100%; background-color:#10b981; border-radius:6px;"></div>
+            </div>
+          </div>
+          
+          <div class="quota-item">
+            <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px;">
+              <span>Cosmos DB Datenspeicher (${dbCount} Dokumente)</span>
+              <span>${(dbSize / 1024).toFixed(2)} MB / ${(dbSizeLimit / 1024).toFixed(0)} MB (${dbSizePct}%)</span>
+            </div>
+            <div style="width:100%; height:12px; background-color:var(--chip); border-radius:6px; overflow:hidden;">
+              <div style="width:${dbSizePct}%; height:100%; background-color:#10b981; border-radius:6px;"></div>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        quotaLoginCard.style.display = "block";
+        quotaCard.style.display = "none";
+      }
     }
 
     // Spaces Helper Functions
