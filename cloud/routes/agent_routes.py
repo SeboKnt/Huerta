@@ -125,6 +125,14 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
         item["ip"] = body["ip"]
     if isinstance(body.get("firmware"), str):
         item["firmware"] = body["firmware"]
+    if isinstance(body.get("device_config"), dict):
+        item["device_config"] = {**item.get("device_config", {}), **body["device_config"]}
+    if isinstance(body.get("watering_schedule"), dict):
+        item["watering_schedule"] = body["watering_schedule"]
+    if isinstance(body.get("ota_status"), dict):
+        item["ota_status"] = {**item.get("ota_status", {}), **body["ota_status"]}
+    if isinstance(body.get("irrigation_history"), list):
+        item["irrigation_history"] = [entry for entry in body["irrigation_history"] if isinstance(entry, dict)]
 
     if body.get("deep_sleep_entering") is True:
         item["terminal_session_active"] = False

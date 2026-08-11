@@ -9,6 +9,7 @@ def _extract_telemetry(body: dict) -> dict:
     cpu_load_pct = body.get("cpu_load_pct", telemetry.get("cpu_load_pct"))
     uptime_sec = body.get("uptime_sec", telemetry.get("uptime_sec"))
     stack_free_words = body.get("stack_free_words", telemetry.get("stack_free_words"))
+    water_level_percent = body.get("water_level_percent", telemetry.get("water_level_percent"))
 
     if not isinstance(ram_free_bytes, int):
         ram_free_bytes = None
@@ -20,6 +21,8 @@ def _extract_telemetry(body: dict) -> dict:
         uptime_sec = None
     if not isinstance(stack_free_words, int):
         stack_free_words = None
+    if not isinstance(water_level_percent, int):
+        water_level_percent = None
 
     if cpu_load_pct is not None:
         if cpu_load_pct < 0:
@@ -33,6 +36,7 @@ def _extract_telemetry(body: dict) -> dict:
         "cpu_load_pct": cpu_load_pct,
         "uptime_sec": uptime_sec,
         "stack_free_words": stack_free_words,
+        "water_level_percent": water_level_percent,
         "reported_at_utc": _utc_now_iso(),
     }
 

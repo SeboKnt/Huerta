@@ -1,4 +1,4 @@
-from core.time_utils import _is_connected, _parse_utc
+from core.time_utils import _is_connected, _parse_utc, _utc_now_iso
 
 
 def _ensure_terminal_fields(item: dict) -> None:
@@ -45,6 +45,48 @@ def _get_device_config(item: dict) -> dict:
         "sleep_mode": config.get("sleep_mode", False),
         "wake_interval_sec": config.get("wake_interval_sec", 600),
     }
+
+
+def _merge_device_config(item: dict, config_payload: dict) -> dict:
+    if not isinstance(config_payload, dict):
+        return _get_device_config(item)
+
+    config = item.get("device_config")
+    if not isinstance(config, dict):
+        config = {}
+
+    updates = {}
+    for key in ("wifi_ssid", "wifi_password", "report_interval_sec", "watering_duration_sec", "sleep_mode", "wake_interval_sec"):
+        if key in config_payload:
+            value = config_payload[key]
+            if key in ("report_interval_sec", "watering_duration_sec", "wake_interval_sec"):
+                try:
+                    value = int(value)
+                except (TypeError, ValueError):
+                    value = 60 if key == "report_interval_sec" else 600 if key == "wake_interval_sec" else 60
+            elif key == "sleep_mode":
+                value = bool(value)
+            updates[key] = value
+
+    merged = {**config, **updates}
+    item["device_config"] = merged
+    return merged
+
+
+def _set_ota_status(item: dict, state: str, version: str = "", message: str = "") -> dict:
+    status = item.get("ota_status")
+    if not isinstance(status, dict):
+        status = {}
+
+    state = str(state or "idle").strip() or "idle"
+    status["state"] = state
+    if version is not None:
+        status["version"] = str(version)
+    if message is not None:
+        status["message"] = str(message)
+    status["last_updated_utc"] = _utc_now_iso()
+    item["ota_status"] = status
+    return status
 
 
 def _get_ota_status(item: dict) -> dict:

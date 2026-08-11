@@ -528,6 +528,31 @@
       white-space: pre-wrap;
     }
 
+    .inline-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .inline-grid label {
+      font-size: 0.9rem;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .inline-grid input,
+    .inline-grid select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: inherit;
+      background: #fff;
+    }
+
     .status-online {
       color: var(--ok);
     }
@@ -689,8 +714,26 @@
       <h2 id="detailsTitle">Device details</h2>
       <div id="detailsMeta" class="terminal-meta">Loading...</div>
       <pre id="detailsJson" class="details-json">Open a device to inspect its current values.</pre>
+      <div class="inline-grid">
+        <label>Wi-Fi SSID<input id="wifiSsidInput" type="text" /></label>
+        <label>Wi-Fi Password<input id="wifiPasswordInput" type="password" /></label>
+        <label>Report Interval (s)<input id="reportIntervalInput" type="number" min="30" step="30" /></label>
+        <label>Watering Duration (s)<input id="wateringDurationInput" type="number" min="10" step="10" /></label>
+        <label>Sleep Mode<select id="sleepModeSelect"><option value="false">Disabled</option><option value="true">Enabled</option></select></label>
+        <label>Wake Interval (s)<input id="wakeIntervalInput" type="number" min="60" step="60" /></label>
+      </div>
+      <div class="inline-grid">
+        <label>OTA State<select id="otaStateSelect"><option value="pending">Pending</option><option value="installing">Installing</option><option value="done">Done</option><option value="failed">Failed</option></select></label>
+        <label>Firmware Version<input id="firmwareVersionInput" type="text" /></label>
+      </div>
+      <div class="inline-grid">
+        <label>Firmware File<input id="firmwareFileInput" type="file" accept=".bin,.elf,.hex,.fw" /></label>
+        <label>Upload Action<button id="uploadFirmwareBtn" type="button" style="margin-top: 20px;">Upload firmware</button></label>
+      </div>
       <div class="modal-actions" style="margin-top: 14px;">
         <button type="button" id="detailsCloseBtn">Close</button>
+        <button type="button" id="rollbackFirmwareBtn" class="btn-soft">Rollback</button>
+        <button type="button" id="saveConfigBtn" class="submit">Save config</button>
       </div>
     </div>
   </div>
@@ -718,10 +761,23 @@
     const detailsMeta = document.getElementById("detailsMeta");
     const detailsJson = document.getElementById("detailsJson");
     const detailsCloseBtn = document.getElementById("detailsCloseBtn");
+    const saveConfigBtn = document.getElementById("saveConfigBtn");
+    const wifiSsidInput = document.getElementById("wifiSsidInput");
+    const wifiPasswordInput = document.getElementById("wifiPasswordInput");
+    const reportIntervalInput = document.getElementById("reportIntervalInput");
+    const wateringDurationInput = document.getElementById("wateringDurationInput");
+    const sleepModeSelect = document.getElementById("sleepModeSelect");
+    const wakeIntervalInput = document.getElementById("wakeIntervalInput");
+    const otaStateSelect = document.getElementById("otaStateSelect");
+    const firmwareVersionInput = document.getElementById("firmwareVersionInput");
+    const firmwareFileInput = document.getElementById("firmwareFileInput");
+    const uploadFirmwareBtn = document.getElementById("uploadFirmwareBtn");
+    const rollbackFirmwareBtn = document.getElementById("rollbackFirmwareBtn");
     const wakeBtn = document.getElementById("wakeBtn");
     const sleepBtn = document.getElementById("sleepBtn");
 
     let activeTerminalDeviceId = "";
+    let activeDeviceId = "";
     let terminalPollId = null;
 
     function log(message) {
@@ -898,6 +954,15 @@
         const ota = device.ota_status || {};
         const history = Array.isArray(device.irrigation_history) ? device.irrigation_history : [];
         const schedule = device.watering_schedule || {};
+        activeDeviceId = deviceId;
+        wifiSsidInput.value = config.wifi_ssid || "";
+        wifiPasswordInput.value = config.wifi_password || "";
+        reportIntervalInput.value = config.report_interval_sec || "";
+        wateringDurationInput.value = config.watering_duration_sec || "";
+        sleepModeSelect.value = String(Boolean(config.sleep_mode));
+        wakeIntervalInput.value = config.wake_interval_sec || "";
+        otaStateSelect.value = ota.state || "pending";
+        firmwareVersionInput.value = ota.version || "";
         detailsMeta.textContent = `Status: ${device.status || "-"} | Connected: ${device.connected ? "yes" : "no"} | Last seen: ${device.last_seen_utc || "-"}`;
         detailsJson.textContent = JSON.stringify({
           ...device,
@@ -914,6 +979,102 @@
       } catch (error) {
         detailsMeta.textContent = `Error: ${String(error)}`;
         detailsJson.textContent = String(error);
+      }
+    }
+
+    async function uploadFirmware() {
+      if (!activeDeviceId) {
+        return;
+      }
+
+      const file = firmwareFileInput.files?.[0];
+      if (!file) {
+        log("Select a firmware file first.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const bytes = reader.result;
+        const contentBase64 = bytes ? btoa(String.fromCharCode(...new Uint8Array(bytes))) : "";
+        try {
+          const response = await fetch(`/devices/${activeDeviceId}/firmware`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filename: file.name,
+              content_base64: contentBase64,
+              firmware_version: firmwareVersionInput.value.trim() || file.name,
+            })
+          });
+          const data = await parseApiResponse(response);
+          if (!response.ok) {
+            throw new Error(data.message || "Firmware upload failed");
+          }
+          log(`Firmware upload queued for ${activeDeviceId}.`);
+          await openDetails(activeDeviceId);
+        } catch (error) {
+          log(`Firmware upload failed: ${String(error)}`);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    async function rollbackFirmware() {
+      if (!activeDeviceId) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/devices/${activeDeviceId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ota_action: "rollback", firmware_version: firmwareVersionInput.value.trim() || "rollback" })
+        });
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.message || "Rollback failed");
+        }
+        log(`Rollback requested for ${activeDeviceId}.`);
+        await openDetails(activeDeviceId);
+      } catch (error) {
+        log(`Rollback failed: ${String(error)}`);
+      }
+    }
+
+    async function saveConfig() {
+      if (!activeDeviceId) {
+        return;
+      }
+
+      try {
+        const payload = {
+          device_config: {
+            wifi_ssid: wifiSsidInput.value.trim(),
+            wifi_password: wifiPasswordInput.value,
+            report_interval_sec: Number(reportIntervalInput.value || 60),
+            watering_duration_sec: Number(wateringDurationInput.value || 60),
+            sleep_mode: sleepModeSelect.value === "true",
+            wake_interval_sec: Number(wakeIntervalInput.value || 600),
+          },
+          ota_action: otaStateSelect.value,
+          firmware_version: firmwareVersionInput.value.trim(),
+          ota_message: `Updated from dashboard at ${new Date().toISOString()}`,
+        };
+
+        const response = await fetch(`/devices/${activeDeviceId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.message || "Save failed");
+        }
+        log(`Configuration saved for ${activeDeviceId}.`);
+        await openDetails(activeDeviceId);
+      } catch (error) {
+        log(`Save failed: ${String(error)}`);
       }
     }
 
@@ -1190,6 +1351,9 @@
     deviceSearchInput.addEventListener("input", loadDevices);
     terminalCloseBtn.addEventListener("click", closeTerminal);
     detailsCloseBtn.addEventListener("click", () => detailsModal.classList.remove("open"));
+    saveConfigBtn.addEventListener("click", saveConfig);
+    uploadFirmwareBtn.addEventListener("click", uploadFirmware);
+    rollbackFirmwareBtn.addEventListener("click", rollbackFirmware);
     terminalSendBtn.addEventListener("click", sendTerminalCommand);
     terminalInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
