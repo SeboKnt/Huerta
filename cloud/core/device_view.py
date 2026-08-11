@@ -337,7 +337,8 @@ def _update_weather_cache(item: dict) -> None:
     lat = profile.get("latitude")
     lon = profile.get("longitude")
     if lat is None or lon is None:
-        return
+        lat = 49.4521
+        lon = 11.0767
 
     now = datetime.now(timezone.utc)
     cache = item.get("cached_weather")

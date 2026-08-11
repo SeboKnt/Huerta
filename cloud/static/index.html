@@ -2071,7 +2071,7 @@
     let chatHistories = {};
 
     // KI-Klinik State Variables
-    let selectedClinicPreset = "monstera";
+    let selectedClinicPreset = "";
     let clinicSelectedDeviceId = "";
     let isClinicScanning = false;
     let clinicLogs = [];
@@ -2285,10 +2285,10 @@
       const container = document.getElementById("weatherWidgetContainer");
       if (!container) return;
 
-      // Find first device with custom lat/lon, default to Frankfurt if none
-      let lat = 50.1107;
-      let lon = 8.6821;
-      let locationName = "Frankfurt (Standard)";
+      // Find first device with custom lat/lon, default to Nürnberg if none
+      let lat = 49.4521;
+      let lon = 11.0767;
+      let locationName = "Nürnberg (Standard)";
 
       for (const dev of cachedDevices) {
         if (dev.plant_context?.latitude && dev.plant_context?.longitude) {
@@ -2306,20 +2306,23 @@
       `;
 
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability,weathercode&current_weather=true&timezone=auto`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability,weathercode,uv_index&current_weather=true&timezone=auto`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Fehler beim Abruf");
         const data = await res.json();
         
         const cw = data.current_weather || {};
         const cond = getWeatherEmoji(cw.weathercode);
+        const hourly = data.hourly || {};
+        const nowIndex = new Date().getHours();
+        
+        // Parse current UV Index
+        const uvIndexVal = (hourly.uv_index && hourly.uv_index[nowIndex] !== undefined) ? hourly.uv_index[nowIndex] : null;
         
         // Find if any device in this location has smart watering enabled and bypass active
         const bypassActive = cachedDevices.some(d => d.watering_schedule?.smart_bypass_active);
         
         // Parse hourly forecast (next 6 hours, stepping by 2)
-        const hourly = data.hourly || {};
-        const nowIndex = new Date().getHours();
         let forecastHtml = "";
         
         for (let i = 0; i < 6; i++) {
@@ -2328,6 +2331,7 @@
           const tempVal = hourly.temperature_2m ? hourly.temperature_2m[nowIndex + i * 2] : 20;
           const rainVal = hourly.precipitation_probability ? hourly.precipitation_probability[nowIndex + i * 2] : 0;
           const codeVal = hourly.weathercode ? hourly.weathercode[nowIndex + i * 2] : 0;
+          const uvVal = hourly.uv_index ? hourly.uv_index[nowIndex + i * 2] : 0;
           const icon = getWeatherEmoji(codeVal).emoji;
           
           forecastHtml += `
@@ -2336,6 +2340,7 @@
               <span class="forecast-icon">${icon}</span>
               <span class="forecast-temp">${tempVal ? tempVal.toFixed(1) : '–'}°C</span>
               <span class="forecast-rain">${rainVal}% 💧</span>
+              <span class="forecast-rain" style="color:#f59e0b;">UV: ${uvVal ? uvVal.toFixed(0) : '0'} ☀️</span>
             </div>
           `;
         }
@@ -2346,10 +2351,18 @@
               <div class="weather-current">
                 <span style="font-size: 38px;">${cond.emoji}</span>
                 <div>
-                  <div style="font-size: 11px; font-weight:700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Wetterstation (${locationName})</div>
-                  <div class="weather-temp">${cw.temperature ? cw.temperature.toFixed(1) : '–'}°C</div>
+                  <div style="font-size: 10px; font-weight:700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Wetterstation (${locationName})</div>
+                  <div style="display:flex; align-items:baseline; gap:8px;">
+                    <span class="weather-temp">${cw.temperature ? cw.temperature.toFixed(1) : '–'}°C</span>
+                    <span class="weather-desc">${cond.desc}</span>
+                  </div>
+                  <div style="font-size: 11px; font-weight:700; color: var(--text-muted); display:flex; align-items:center; gap:4px; margin-top:2px;">
+                    <span>☀️ UV-Index:</span> 
+                    <span style="color: ${uvIndexVal > 5 ? '#ef4444' : uvIndexVal > 2 ? '#f59e0b' : '#10b981'}; font-weight:800;">
+                      ${uvIndexVal !== null ? uvIndexVal.toFixed(1) : '–'}
+                    </span>
+                  </div>
                 </div>
-                <div class="weather-desc" style="margin-left: 10px;">${cond.desc}</div>
               </div>
               
               ${bypassActive ? `
@@ -2511,6 +2524,61 @@
       const customBg = localStorage.getItem(`huerta_room_bg_${activeRoom}`);
       const layoutElements = JSON.parse(localStorage.getItem(`huerta_room_layout_${activeRoom}`) || "[]");
       
+      // Calculate room average temp and humidity
+      let totalTemp = 0;
+      let totalHum = 0;
+      let count = 0;
+      for (const dev of roomDevices) {
+        const plant = dev.plant_context || {};
+        const telemetry = dev.telemetry || {};
+        const temp = plant.temperature_c ?? telemetry.temperature_c;
+        const hum = plant.humidity_pct ?? telemetry.humidity_pct;
+        if (temp != null) { totalTemp += temp; count++; }
+        if (hum != null) { totalHum += hum; }
+      }
+      
+      const avgTemp = count > 0 ? (totalTemp / count).toFixed(1) + "°C" : "–";
+      const avgHum = count > 0 ? (totalHum / count).toFixed(0) + "%" : "–";
+      
+      // Determine a stable simulated CO2 value based on room name
+      let co2Val = 410; // default outdoor fresh air (e.g. Terrasse)
+      let co2Status = "Optimal";
+      let co2Class = "badge-success";
+      let co2Color = "#10b981";
+      
+      const rLower = activeRoom.toLowerCase();
+      if (rLower.includes("schlafzimmer")) {
+        co2Val = 980;
+        co2Status = "Normal";
+        co2Class = "badge-warning";
+        co2Color = "#f59e0b";
+      } else if (rLower.includes("küche")) {
+        co2Val = 620;
+        co2Status = "Optimal";
+        co2Class = "badge-success";
+        co2Color = "#10b981";
+      } else if (rLower.includes("wohnzimmer")) {
+        co2Val = 810;
+        co2Status = "Normal";
+        co2Class = "badge-warning";
+        co2Color = "#f59e0b";
+      } else if (rLower.includes("bad") || rLower.includes("keller")) {
+        co2Val = 1150;
+        co2Status = "Lüften empfohlen";
+        co2Class = "badge-danger";
+        co2Color = "#ef4444";
+      } else if (rLower.includes("terrasse") || rLower.includes("balkon") || rLower.includes("garten")) {
+        co2Val = 410;
+        co2Status = "Frischluft";
+        co2Class = "badge-success";
+        co2Color = "#10b981";
+      } else {
+        co2Val = 750;
+        co2Status = "Normal";
+        co2Class = "badge-warning";
+        co2Color = "#f59e0b";
+      }
+
       let html = `
         <div class="tab-header">
           <div>
@@ -2542,7 +2610,7 @@
             <button id="layoutEditToggleBtn" class="${isEditLayoutMode ? 'btn-primary' : 'btn-secondary'}" style="padding:10px 14px; font-size:13px; font-weight:600;" onclick="toggleLayoutEditMode()">
               ${isEditLayoutMode ? '💾 Fertig (Speichern)' : '🛠️ Layout bearbeiten'}
             </button>
-
+ 
             <label class="btn-secondary" style="padding:10px 14px; border-radius:10px; cursor:pointer; display:inline-block; border:1px solid var(--panel-border); margin:0; font-size:13px; font-weight:600;">
               🖼️ Grundriss hochladen
               <input type="file" id="floorPlanUpload" accept="image/*" style="display:none;" onchange="onFloorPlanUpload(event)" />
@@ -2551,14 +2619,31 @@
           </div>
         </div>
 
+        <!-- Room Climate Dashboard Widget -->
+        <div style="background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid var(--panel-border); border-radius:12px; padding:12px 16px; margin-bottom:16px; display:flex; gap:20px; align-items:center; flex-wrap:wrap; backdrop-filter:blur(4px);">
+          <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Zimmer-Klima (${activeRoom})</div>
+          <div style="display:flex; gap:16px; align-items:center; font-size:13px; color:var(--text-main); flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span>🌡️ Ø-Temp:</span>
+              <span style="font-weight:700;">${avgTemp}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span>💧 Luftfeuchte:</span>
+              <span style="font-weight:700;">${avgHum}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; border-left:1px solid rgba(255,255,255,0.1); padding-left:16px;">
+              <span>🍃 CO2-Gehalt:</span>
+              <span style="font-weight:800; color:${co2Color};">${co2Val} ppm</span>
+              <span style="font-size:10px; font-weight:800; background:rgba(255,255,255,0.05); color:${co2Color}; border:1px solid ${co2Color}40; padding:2px 6px; border-radius:4px;">${co2Status}</span>
+            </div>
+          </div>
+        </div>
+ 
         <!-- Add Layout Element Toolbar -->
         <div class="layout-toolbar" id="layoutToolbar" style="display:${isEditLayoutMode ? 'flex' : 'none'}; gap:6px; flex-wrap:wrap; margin-bottom:12px; margin-top:-10px;">
           <button type="button" class="btn-dark" style="font-size:12px; padding:6px 12px;" onclick="addLayoutElement('wall')">🧱 Wand hinzufügen</button>
           <button type="button" class="btn-dark" style="font-size:12px; padding:6px 12px;" onclick="addLayoutElement('window')">🪟 Fenster hinzufügen</button>
           <button type="button" class="btn-dark" style="font-size:12px; padding:6px 12px;" onclick="addLayoutElement('door')">🚪 Tür hinzufügen</button>
-          <button type="button" class="btn-dark" style="font-size:12px; padding:6px 12px;" onclick="addLayoutElement('table')">🪑 Tisch hinzufügen</button>
-          <button type="button" class="btn-dark" style="font-size:12px; padding:6px 12px;" onclick="addLayoutElement('sofa')">🛋️ Sofa hinzufügen</button>
-          <button type="button" class="btn-dark" style="font-size:12px; padding:6px 12px;" onclick="addLayoutElement('stand')">🪴 Hocker hinzufügen</button>
         </div>
         
         <div class="spaces-layout-container">
@@ -2829,25 +2914,6 @@
               
               <input type="file" id="clinicPhotoInput" accept="image/*" style="display:none;" onchange="handleClinicPhotoUpload(event)" />
             </div>
-
-            <div>
-              <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Oder wähle ein Preset-Beispiel:</label>
-              <div class="preset-photos">
-                <div class="preset-card ${selectedClinicPreset === 'monstera' ? 'active' : ''}" onclick="selectClinicPreset('monstera')" style="${selectedClinicPreset === 'monstera' ? 'border-color:var(--accent);background:var(--panel);' : ''}">
-                  <div style="font-size:24px;margin-bottom:4px;">🍂</div>
-                  <span>Monstera (Nass)</span>
-                </div>
-                <div class="preset-card ${selectedClinicPreset === 'basil' ? 'active' : ''}" onclick="selectClinicPreset('basil')" style="${selectedClinicPreset === 'basil' ? 'border-color:var(--accent);background:var(--panel);' : ''}">
-                  <div style="font-size:24px;margin-bottom:4px;">🥀</div>
-                  <span>Basilikum (Trocken)</span>
-                </div>
-                <div class="preset-card ${selectedClinicPreset === 'ivy' ? 'active' : ''}" onclick="selectClinicPreset('ivy')" style="${selectedClinicPreset === 'ivy' ? 'border-color:var(--accent);background:var(--panel);' : ''}">
-                  <div style="font-size:24px;margin-bottom:4px;">🌿</div>
-                  <span>Efeu (Gesund)</span>
-                </div>
-              </div>
-            </div>
-
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label for="clinicDeviceSelect" style="font-size:12px; font-weight:700;">Dieses Diagnose-Ergebnis anwenden auf:</label>
               <select id="clinicDeviceSelect" onchange="clinicSelectedDeviceId = this.value; renderClinic(appContent); drawClinicPreset(selectedClinicPreset);" style="padding:10px; border-radius:8px; border:1px solid var(--panel-border); background:var(--panel); color:var(--text-main); font-size:13px; font-weight:600;">
@@ -2934,112 +3000,22 @@
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      ctx.save();
-      ctx.translate(200, 150);
-      
-      if (type === "monstera") {
-        // Monstera
-        ctx.fillStyle = "#065f46";
-        ctx.beginPath();
-        ctx.moveTo(0, -90);
-        ctx.bezierCurveTo(70, -90, 110, -30, 90, 40);
-        ctx.bezierCurveTo(70, 90, 20, 100, 0, 110);
-        ctx.bezierCurveTo(-20, 100, -70, 90, -90, 40);
-        ctx.bezierCurveTo(-110, -30, -70, -90, 0, -90);
-        ctx.fill();
+      if (type !== "custom") {
+        // Draw a camera icon & dashed box
+        ctx.strokeStyle = "rgba(255,255,255,0.15)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+        ctx.setLineDash([]);
         
-        // Cuts
-        ctx.fillStyle = "#111827";
-        const cuts = [
-          {x1: 20, y1: -40, w: 60, h: 10, rot: -0.2},
-          {x1: 30, y1: 10, w: 70, h: 12, rot: 0.1},
-          {x1: -20, y1: -40, w: -60, h: 10, rot: 0.2},
-          {x1: -30, y1: 10, w: -70, h: 12, rot: -0.1}
-        ];
-        cuts.forEach(c => {
-          ctx.save();
-          ctx.translate(c.x1, c.y1);
-          ctx.rotate(c.rot);
-          ctx.fillRect(0, -c.h/2, c.w, c.h);
-          ctx.restore();
-        });
-        
-        // Decay spots
-        ctx.fillStyle = "#854d0e";
-        ctx.beginPath(); ctx.arc(40, -10, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(-50, 20, 10, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#eab308";
-        ctx.beginPath(); ctx.arc(40, -10, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(-50, 20, 5, 0, Math.PI * 2); ctx.fill();
-        
-      } else if (type === "basil") {
-        // Basil (Droop)
-        ctx.rotate(0.3);
-        ctx.fillStyle = "#166534";
-        ctx.beginPath();
-        ctx.moveTo(0, -80);
-        ctx.quadraticCurveTo(50, -50, 40, 20);
-        ctx.quadraticCurveTo(20, 80, 0, 90);
-        ctx.quadraticCurveTo(-20, 80, -40, 20);
-        ctx.quadraticCurveTo(-50, -50, 0, -80);
-        ctx.fill();
-        
-        ctx.fillStyle = "#78350f";
-        ctx.beginPath();
-        ctx.moveTo(0, 90);
-        ctx.quadraticCurveTo(15, 80, 10, 60);
-        ctx.quadraticCurveTo(0, 75, 0, 90);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(40, 20);
-        ctx.quadraticCurveTo(35, 40, 25, 45);
-        ctx.quadraticCurveTo(42, 35, 40, 20);
-        ctx.fill();
-        
-      } else if (type === "ivy") {
-        // Ivy
-        ctx.fillStyle = "#10b981";
-        ctx.beginPath();
-        ctx.moveTo(0, -90);
-        ctx.lineTo(35, -40);
-        ctx.lineTo(85, -20);
-        ctx.lineTo(45, 10);
-        ctx.lineTo(55, 70);
-        ctx.lineTo(0, 40);
-        ctx.lineTo(-55, 70);
-        ctx.lineTo(-45, 10);
-        ctx.lineTo(-85, -20);
-        ctx.lineTo(-35, -40);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Veins
-        ctx.strokeStyle = "#a7f3d0";
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(0, 40);
-        ctx.lineTo(0, -75);
-        ctx.moveTo(0, -10); ctx.lineTo(60, -15);
-        ctx.moveTo(0, -10); ctx.lineTo(-60, -15);
-        ctx.moveTo(0, 15); ctx.lineTo(40, 50);
-        ctx.moveTo(0, 15); ctx.lineTo(-40, 50);
-        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
+        ctx.font = "bold 13px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("📷 KLICKE HIER, UM PFLANZENFOTO ZU LADEN", 200, 145);
+        ctx.font = "11px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        ctx.fillText("(Unterstützt JPG, PNG, WEBP)", 200, 170);
       }
-      
-      // Stem
-      ctx.strokeStyle = "#4b5563";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(0, 70);
-      ctx.quadraticCurveTo(10, 100, 20, 120);
-      ctx.stroke();
-      
-      ctx.restore();
-    }
-
-    function selectClinicPreset(preset) {
-      selectedClinicPreset = preset;
-      renderClinic(appContent);
     }
 
     function handleClinicPhotoUpload(event) {
@@ -3069,6 +3045,10 @@
     }
 
     function startClinicScan() {
+      if (selectedClinicPreset !== "custom") {
+        alert("Bitte lade zuerst ein Foto deiner Pflanze hoch (Klick auf den Blatt-Scanner).");
+        return;
+      }
       if (isClinicScanning) return;
       isClinicScanning = true;
       clinicLogs = [];
@@ -3106,38 +3086,55 @@
       setTimeout(() => {
         isClinicScanning = false;
         
+        const dev = cachedDevices.find(d => d.id === clinicSelectedDeviceId) || {};
+        const plant = dev.plant_context || {};
+        const telemetry = dev.telemetry || {};
+        const soil = plant.soil_moisture_pct ?? telemetry.soil_moisture_pct;
+        const temp = plant.temperature_c ?? telemetry.temperature_c;
+        const name = plant.plant_name || dev.name || "Deine Pflanze";
+        const species = plant.plant_species || "Zimmerpflanze";
+        
         let report = {};
-        if (selectedClinicPreset === "monstera") {
+        
+        if (!clinicSelectedDeviceId) {
           report = {
-            title: "Chlorose & Zelltod (Staunässe)",
-            subtitle: "Monstera Deliciosa (Fensterblatt)",
-            score: 45,
-            details: "Gelbfärbung der äußeren Blattränder und dunkle Flecken weisen auf einen Sauerstoffmangel im Wurzelbereich durch Staunässe hin (Wurzelfäule-Risiko).",
-            recom: "Gießdauer verringern. Gießintervall anpassen (Smart Gießen einschalten). Erhöhe die Trockenphase. Empfohlener Bodenfeuchte-Sollwert: 40%."
+            title: "Diagnose ohne Geräte-Kontext",
+            subtitle: "Unbekannte Spezies",
+            score: 75,
+            details: "Der Gewebescan zeigt eine normale Chlorophylldichte. Ohne Live-Sensordaten kann keine detaillierte Diagnose gestellt werden.",
+            recom: "Verbinde ein Gerät im Dropdown, um Echtzeitdaten in den Scan einzubeziehen. Bodenfeuchte auf ca. 45% einstellen."
           };
-        } else if (selectedClinicPreset === "basil") {
+        } else if (soil === null || soil === undefined) {
+          report = {
+            title: "Fehlende Sensordaten",
+            subtitle: `${species} (${name})`,
+            score: 60,
+            details: "Bildanalyse zeigt leichte Welkeerscheinungen. Es liegen derzeit keine aktuellen Telemetriedaten zur Bodenfeuchtigkeit vor.",
+            recom: "Bitte stelle sicher, dass der Feuchtigkeitssensor korrekt angeschlossen und in der Erde platziert ist. Richtwert: 45%."
+          };
+        } else if (soil < 30) {
           report = {
             title: "Akuter Trockenstress (Wassermangel)",
-            subtitle: "Ocimum Basilicum (Basilikum)",
-            score: 28,
-            details: "Hängende Triebe und trockene Blattränder zeigen einen Zusammenbruch des Turgordrucks durch langanhaltenden Feuchtigkeitsentzug der Erde.",
-            recom: "Sofortiger Gießzyklus erforderlich. Erhöhe das Gießintervall oder die Dauer um 15%. Empfohlener Bodenfeuchte-Sollwert: 60%."
+            subtitle: `${species} (${name})`,
+            score: Math.round(15 + soil * 0.5),
+            details: `Kritische Trockenheit erkannt. Die Bodenfeuchtigkeit liegt bei besorgniserregenden ${soil.toFixed(0)}%. Die Spaltöffnungen schließen sich, um Verdunstung zu verhindern.`,
+            recom: "Führe sofort eine Bewässerung durch. Erhöhe die Gießdauer oder verkürze das Gießintervall. Empfohlener Bodenfeuchte-Sollwert: 55%."
           };
-        } else if (selectedClinicPreset === "ivy") {
+        } else if (soil > 75) {
           report = {
-            title: "Gesunde Blattstruktur (Optimaler Zustand)",
-            subtitle: "Hedera Helix (Gemeiner Efeu)",
-            score: 98,
-            details: "Vollständig grüne Chlorophyll-Dichte, pralle Zellstrukturen und keine sichtbaren Verfärbungen. Perfekt an den Standort angepasst.",
-            recom: "Pflege beibehalten. Telemetriewerte sind im idealen Bereich. Empfohlener Bodenfeuchte-Sollwert: 50%."
+            title: "Sauerstoffmangel & Wurzelfäule-Gefahr",
+            subtitle: `${species} (${name})`,
+            score: Math.max(30, Math.round(100 - (soil - 70) * 2)),
+            details: `Überwässerung detektiert. Der Bodenfeuchtigkeitswert ist mit ${soil.toFixed(0)}% zu hoch. Luftporen im Substrat sind verstopft, was zu anaeroben Bedingungen führt.`,
+            recom: "Gießvorgänge aussetzen. Erhöhe die Gießintervalle deutlich und sorge für guten Wasserabfluss. Empfohlener Bodenfeuchte-Sollwert: 40%."
           };
         } else {
           report = {
-            title: "Unspezifische Gewebestruktur (Unbekannt)",
-            subtitle: "Hochgeladene Pflanze",
-            score: 75,
-            details: "Erkennung basiert auf benutzerdefiniertem Foto. Die Blattvenendichte deutet auf eine durchschnittliche Verdunstungsrate hin.",
-            recom: "Pflanze mäßig feucht halten. Empfohlener Bodenfeuchte-Sollwert: 45%."
+            title: "Gesunde Blatt- & Zellstruktur",
+            subtitle: `${species} (${name})`,
+            score: Math.round(85 + (15 - Math.abs(50 - soil) * 0.3)),
+            details: `Exzellenter Zustand. Die Bodenfeuchte liegt im optimalen Bereich von ${soil.toFixed(0)}%. Die Temperatur beträgt angenehme ${temp != null ? temp.toFixed(1) + '°C' : '22°C'}.`,
+            recom: "Pflegebehandlung beibehalten. Das Gießintervall und die Wassermenge sind optimal auf den Standort abgestimmt. Empfohlener Bodenfeuchte-Sollwert: 50%."
           };
         }
         
@@ -3171,9 +3168,10 @@
     async function applyClinicDiagnostics() {
       if (!clinicScanReport || !clinicSelectedDeviceId) return;
       
-      let targetSoilMoisture = 40;
-      if (selectedClinicPreset === "basil") targetSoilMoisture = 60;
-      else if (selectedClinicPreset === "ivy") targetSoilMoisture = 50;
+      let targetSoilMoisture = 45;
+      if (clinicScanReport.title.includes("Trockenstress")) targetSoilMoisture = 55;
+      else if (clinicScanReport.title.includes("Sauerstoffmangel")) targetSoilMoisture = 40;
+      else if (clinicScanReport.title.includes("Gesunde")) targetSoilMoisture = 50;
       
       try {
         const response = await fetch(`/devices/${clinicSelectedDeviceId}`, {
