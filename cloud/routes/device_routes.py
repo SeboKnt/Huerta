@@ -300,6 +300,12 @@ def add_device(req: func.HttpRequest) -> func.HttpResponse:
         "terminal_commands": [],
         "terminal_output": [],
         "telemetry_history": [],
+        "plant_profile": {
+            "plant_name": device_name,
+            "room": body.get("room", "").strip() or "Unknown room",
+            "plant_species": "",
+            "notes": "",
+        }
     }
 
     try:

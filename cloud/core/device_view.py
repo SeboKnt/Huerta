@@ -60,6 +60,7 @@ def _get_device_config(item: dict) -> dict:
         "watering_duration_sec": config.get("watering_duration_sec", 60),
         "sleep_mode": config.get("sleep_mode", False),
         "wake_interval_sec": config.get("wake_interval_sec", 600),
+        "flow_rate_ml_sec": config.get("flow_rate_ml_sec", 15),
     }
 
 
@@ -72,14 +73,21 @@ def _merge_device_config(item: dict, config_payload: dict) -> dict:
         config = {}
 
     updates = {}
-    for key in ("wifi_ssid", "wifi_password", "report_interval_sec", "watering_duration_sec", "sleep_mode", "wake_interval_sec"):
+    for key in ("wifi_ssid", "wifi_password", "report_interval_sec", "watering_duration_sec", "sleep_mode", "wake_interval_sec", "flow_rate_ml_sec"):
         if key in config_payload:
             value = config_payload[key]
-            if key in ("report_interval_sec", "watering_duration_sec", "wake_interval_sec"):
+            if key in ("report_interval_sec", "watering_duration_sec", "wake_interval_sec", "flow_rate_ml_sec"):
                 try:
                     value = int(value)
                 except (TypeError, ValueError):
-                    value = 60 if key == "report_interval_sec" else 600 if key == "wake_interval_sec" else 60
+                    if key == "report_interval_sec":
+                        value = 60
+                    elif key == "wake_interval_sec":
+                        value = 600
+                    elif key == "flow_rate_ml_sec":
+                        value = 15
+                    else:
+                        value = 60
             elif key == "sleep_mode":
                 value = bool(value)
             updates[key] = value
@@ -309,6 +317,7 @@ def _to_device_response(item: dict) -> dict:
         "relay_debug_state": relay_state,
         "relay_debug_request_id": item.get("relay_debug_request_id", ""),
         "telemetry": _telemetry_summary(item),
+        "telemetry_history": item.get("telemetry_history") if isinstance(item.get("telemetry_history"), list) else [],
         "stats": _get_stats(item),
         "alerts": _get_alerts(item),
         "irrigation_history": _get_irrigation_history(item),

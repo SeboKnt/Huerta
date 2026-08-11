@@ -13,12 +13,14 @@ class DeviceActionHelpersTests(unittest.TestCase):
                 "wifi_password": "secret",
                 "report_interval_sec": 120,
                 "sleep_mode": True,
+                "flow_rate_ml_sec": 20,
             },
         )
 
         self.assertEqual(config["wifi_ssid"], "GardenNet")
         self.assertEqual(config["report_interval_sec"], 120)
         self.assertTrue(config["sleep_mode"])
+        self.assertEqual(config["flow_rate_ml_sec"], 20)
         self.assertEqual(item["device_config"]["wifi_password"], "secret")
 
     def test_set_ota_status_tracks_state_and_version(self):

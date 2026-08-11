@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       /* Light Theme Variables */
@@ -570,6 +571,7 @@
       gap: 8px;
       overflow-x: auto;
       padding-bottom: 4px;
+      align-items: center;
     }
 
     .room-tab-btn {
@@ -1587,6 +1589,10 @@
           <label for="deviceName">Gerätename *</label>
           <input type="text" id="deviceName" required placeholder="z.B. Küchen-Basilikum" />
         </div>
+        <div class="form-group">
+          <label for="deviceRoom">Raum (z.B. Terrasse, Küche)</label>
+          <input type="text" id="deviceRoom" placeholder="z.B. Terrasse" />
+        </div>
         <div class="modal-actions">
           <button type="button" id="cancelBtn">Abbrechen</button>
           <button type="submit" class="submit">Anlegen</button>
@@ -1619,10 +1625,33 @@
   </div>
 
   <div id="detailsModal" class="modal">
-    <div class="modal-content" style="max-width:780px;width:94%;">
+    <div class="modal-content" style="max-width:780px;width:94%; max-height:95vh; overflow-y:auto;">
       <h2 id="detailsTitle">Gerätedetails</h2>
       <div id="detailsMeta" class="terminal-meta">Lädt…</div>
-      <pre id="detailsJson" class="details-json">Details laden…</pre>
+      
+      <!-- Water usage calculator -->
+      <div id="waterUsageSection" style="margin-top:15px; margin-bottom:15px; padding:14px; background-color:var(--accent-soft); border:1px solid var(--accent-border); border-radius:12px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="display:block; font-size:10px; text-transform:uppercase; font-weight:700; color:var(--accent);">Wasserverbrauch gesamt</span>
+          <span id="waterUsageVal" style="font-size:18px; font-weight:800; color:var(--text-main);">0 ml</span>
+        </div>
+        <span style="font-size:24px;">💧</span>
+      </div>
+
+      <!-- Telemetry Chart -->
+      <div id="chartContainer" class="system-logs-section" style="margin-bottom:16px; padding:16px;">
+        <h3 style="margin:0 0 12px 0; font-size:14px;">Bodenfeuchtigkeits- & Temperaturverlauf</h3>
+        <div style="position:relative; height:200px; width:100%;">
+          <canvas id="telemetryChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Raw JSON (Collapsible) -->
+      <details style="margin-bottom:16px; border:1px solid var(--panel-border); border-radius:10px; padding:10px; background-color: var(--chip);">
+        <summary style="font-size:13px; font-weight:700; cursor:pointer; color:var(--text-muted); user-select:none;">Rohdaten (JSON) einblenden</summary>
+        <pre id="detailsJson" class="details-json" style="margin-top:10px; font-size:11px; max-height:160px;"></pre>
+      </details>
+
       <div class="inline-grid">
         <label>Wi-Fi SSID<input id="wifiSsidInput" type="text" /></label>
         <label>Wi-Fi Passwort<input id="wifiPasswordInput" type="password" /></label>
@@ -1630,8 +1659,9 @@
         <label>Bewässerungsdauer (s)<input id="wateringDurationInput" type="number" min="10" step="1" /></label>
         <label>Sleep Mode<select id="sleepModeSelect"><option value="false">Aus</option><option value="true">An</option></select></label>
         <label>Wake-Intervall (s)<input id="wakeIntervalInput" type="number" min="60" step="60" /></label>
+        <label>Pumpe-Durchfluss (ml/s)<input id="flowRateInput" type="number" min="1" step="1" value="15" /></label>
       </div>
-      <div class="inline-grid">
+      <div class="inline-grid" style="margin-top: 12px;">
         <label>Firmware-Version<input id="firmwareVersionInput" type="text" /></label>
         <label>Firmware-Datei<input id="firmwareFileInput" type="file" accept=".bin,.elf,.hex,.fw" /></label>
       </div>
@@ -1654,6 +1684,23 @@
       const next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('huerta_theme', next);
+      
+      // Update telemetry chart grid colors if chart exists
+      if (myDetailsChart) {
+        const isDark = next === 'dark';
+        const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+        const labelColor = isDark ? '#9ca3af' : '#64748b';
+        
+        myDetailsChart.options.scales.x.grid.color = gridColor;
+        myDetailsChart.options.scales.x.ticks.color = labelColor;
+        myDetailsChart.options.scales.y.grid.color = gridColor;
+        myDetailsChart.options.scales.y.ticks.color = labelColor;
+        myDetailsChart.options.scales.y.title.color = labelColor;
+        myDetailsChart.options.scales.yTemp.ticks.color = labelColor;
+        myDetailsChart.options.scales.yTemp.title.color = labelColor;
+        myDetailsChart.options.plugins.legend.labels.color = labelColor;
+        myDetailsChart.update();
+      }
     }
 
     // Tab Management
@@ -1706,6 +1753,7 @@
     const wateringDurationInput = document.getElementById("wateringDurationInput");
     const sleepModeSelect = document.getElementById("sleepModeSelect");
     const wakeIntervalInput = document.getElementById("wakeIntervalInput");
+    const flowRateInput = document.getElementById("flowRateInput");
     const firmwareVersionInput = document.getElementById("firmwareVersionInput");
     const firmwareFileInput = document.getElementById("firmwareFileInput");
     const uploadFirmwareBtn = document.getElementById("uploadFirmwareBtn");
@@ -1752,6 +1800,7 @@
     let activeDeviceId = "";
     let terminalPollId = null;
     let cachedDevices = [];
+    let myDetailsChart = null;
 
     function statusChip(status) {
       const safe = String(status || "unknown");
@@ -1890,19 +1939,6 @@
       return `<div class="calendar"><div class="calendar-head">${head}</div><div class="calendar-grid">${cells}</div></div>`;
     }
 
-    function renderHistory(history) {
-      const items = Array.isArray(history) ? history.slice(0, 3) : [];
-      if (items.length === 0) {
-        return `<div style="font-size:11px;color:var(--text-muted);">Noch keine Zyklen</div>`;
-      }
-      return `<ul style="margin:0;padding:0;list-style:none;font-size:11px;line-height:1.4;">${items.map((entry) => {
-        const when = formatRelativeTime(entry.started_at_utc);
-        const dur = entry.duration_sec != null ? `${entry.duration_sec}s` : "?";
-        const src = entry.source === "manual" ? "Manuell" : entry.source === "schedule" ? "Plan" : "Auto";
-        return `<li style="display:flex;justify-content:space-between;border-bottom:1px solid var(--panel-border);padding:3px 0;"><span>${when} · ${dur}</span><span>${src}</span></li>`;
-      }).join("")}</ul>`;
-    }
-
     // Dynamic Render views based on activeTab
     function renderActiveTab() {
       if (activeTab === "spaces" && dragPin !== null) {
@@ -1945,8 +1981,11 @@
             <h2>Pflanzen-Dashboard</h2>
             <p class="subtitle">Übersicht aller Bewässerungsgeräte und Sensorwerte in einer Liste.</p>
           </div>
-          <div class="search-bar-wrapper">
-            <input id="deviceSearch" class="search-input" type="search" placeholder="Geräte suchen..." value="${searchQuery}" oninput="onSearchInput(event)" />
+          <div style="display:flex;gap:12px;align-items:center;">
+            <div class="search-bar-wrapper">
+              <input id="deviceSearch" class="search-input" type="search" placeholder="Geräte suchen..." value="${searchQuery}" oninput="onSearchInput(event)" />
+            </div>
+            <button type="button" class="btn-primary" onclick="openOnboardModal()">ESP registrieren</button>
           </div>
         </div>
       `;
@@ -1979,7 +2018,7 @@
               <div class="plant-avatar">🌱</div>
               <div class="plant-meta">
                 <span class="plant-name">${plant.plant_name || device.name || "Unbenannte Pflanze"}</span>
-                <span class="plant-sub">${plant.room || "Unbekannter Raum"} · Firmware: ${device.firmware || "–"}</span>
+                <span class="plant-sub">${plant.room || "Unbekannter Raum"} · SN: <code>${device.id}</code></span>
               </div>
             </div>
             
@@ -2015,7 +2054,7 @@
               <div class="dropdown-actions">
                 <button class="action-btn btn-secondary" onclick="toggleDropdownMenu(event, '${device.id}')">•••</button>
                 <div id="dropdown-${device.id}" class="dropdown-menu-content">
-                  <a href="#" onclick="openDeviceDetails('${device.id}'); return false;">Gerätedetails</a>
+                  <a href="#" onclick="openDeviceDetails('${device.id}'); return false;">Gerädetetails</a>
                   <a href="#" onclick="openDeviceTerminal('${device.id}'); return false;">ESP Terminal</a>
                   <a href="#" data-action="identify" data-device="${device.id}">Identifizieren</a>
                   <a href="#" data-action="restart" data-device="${device.id}">Neustart</a>
@@ -2044,33 +2083,48 @@
       const roomDevices = cachedDevices.filter(d => (d.plant_context?.room || "Unbekannter Raum") === activeRoom);
       const placedDevices = roomDevices.filter(d => d.plant_context?.room_x != null && d.plant_context?.room_y != null);
       const unplacedDevices = roomDevices.filter(d => d.plant_context?.room_x == null || d.plant_context?.room_y == null);
+      const customBg = localStorage.getItem(`huerta_room_bg_${activeRoom}`);
       
       let html = `
         <div class="tab-header">
           <div>
             <h2>Raum-Planer</h2>
-            <p class="subtitle">Ziehe die Symbole, um deine Pflanzen grafisch im Raum anzuordnen.</p>
+            <p class="subtitle">Skizziere deinen Raum mit einem eigenen Grundriss und ziehe deine Pflanzen an den genauen Ort.</p>
           </div>
         </div>
         
         <div class="spaces-manager">
           <div class="room-selector-tabs">
             ${rooms.map(room => `
-              <button class="room-tab-btn ${room === activeRoom ? 'active' : ''}" onclick="selectActiveRoom('${room}')">
-                ${room}
-              </button>
+              <div style="display:inline-flex; align-items:center;">
+                <button class="room-tab-btn ${room === activeRoom ? 'active' : ''}" onclick="selectActiveRoom('${room}')">
+                  ${room}
+                </button>
+                ${room === activeRoom && room !== "Unbekannter Raum" ? `
+                  <button class="btn-danger" style="padding:4px 8px; font-size:10px; margin-left:-10px; margin-right:8px; border-radius:6px; z-index:2; border-color:transparent;" onclick="deleteActiveRoom(event, '${room}')" title="Raum löschen">✕</button>
+                ` : ''}
+              </div>
             `).join('')}
           </div>
-          <div class="add-space-form">
-            <input type="text" id="newRoomInput" placeholder="Neuer Raum Name..." />
-            <button class="btn-dark" onclick="addNewRoom()">Hinzufügen</button>
+          
+          <div style="display:flex; gap:10px; align-items:center;">
+            <div class="add-space-form">
+              <input type="text" id="newRoomInput" placeholder="Neuer Raum Name..." />
+              <button class="btn-dark" onclick="addNewRoom()">Hinzufügen</button>
+            </div>
+            
+            <label class="btn-secondary" style="padding:10px 14px; border-radius:10px; cursor:pointer; display:inline-block; border:1px solid var(--panel-border); margin:0; font-size:13px; font-weight:600;">
+              🖼️ Grundriss hochladen
+              <input type="file" id="floorPlanUpload" accept="image/*" style="display:none;" onchange="onFloorPlanUpload(event)" />
+            </label>
+            <button id="removeFloorPlanBtn" class="btn-danger" style="display:${customBg ? 'block' : 'none'}; padding:10px 14px; font-size:13px;" onclick="removeFloorPlan()">Grundriss löschen</button>
           </div>
         </div>
         
         <div class="spaces-layout-container">
           <div class="canvas-wrapper">
-            <div class="room-canvas" id="roomCanvas">
-              <div class="canvas-grid-overlay"></div>
+            <div class="room-canvas" id="roomCanvas" style="background-image: ${customBg ? 'url(' + customBg + ')' : 'none'}; background-size: cover; background-position: center; background-repeat: no-repeat;">
+              <div class="canvas-grid-overlay" style="display: ${customBg ? 'none' : 'block'};"></div>
               
               <!-- Placed Devices -->
               ${placedDevices.map(device => {
@@ -2368,6 +2422,72 @@
       log(`Raum '${newRoom}' hinzugefügt.`);
     }
 
+    async function deleteActiveRoom(event, room) {
+      event.stopPropagation();
+      if (!confirm(`Raum '${room}' wirklich löschen? Alle darin enthaltenen Pflanzen werden auf 'Unbekannter Raum' zurückgesetzt.`)) {
+        return;
+      }
+      
+      const roomDevices = cachedDevices.filter(d => (d.plant_context?.room || "Unbekannter Raum") === room);
+      
+      for (const device of roomDevices) {
+        try {
+          await fetch(`/devices/${device.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              plant_profile: {
+                room: "Unbekannter Raum",
+                room_x: null,
+                room_y: null
+              }
+            })
+          });
+          if (device.plant_context) {
+            device.plant_context.room = "Unbekannter Raum";
+            device.plant_context.room_x = null;
+            device.plant_context.room_y = null;
+          }
+        } catch (e) {
+          log(`Fehler beim Zurücksetzen von Gerät ${device.id}: ${e}`);
+        }
+      }
+      
+      let rooms = JSON.parse(localStorage.getItem("huerta_rooms") || '["Terrasse", "Schlafzimmer", "Küche", "Wohnzimmer"]');
+      rooms = rooms.filter(r => r !== room);
+      localStorage.setItem("huerta_rooms", JSON.stringify(rooms));
+      
+      localStorage.removeItem(`huerta_room_bg_${room}`);
+      
+      activeRoom = "";
+      log(`Raum '${room}' gelöscht.`);
+      await loadDevices();
+    }
+
+    function onFloorPlanUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64 = e.target.result;
+        try {
+          localStorage.setItem(`huerta_room_bg_${activeRoom}`, base64);
+          log(`Grundriss für '${activeRoom}' hochgeladen.`);
+          renderActiveTab();
+        } catch (err) {
+          log(`Fehler: Bild zu groß für lokalen Speicher (max. ~4MB).`);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeFloorPlan() {
+      localStorage.removeItem(`huerta_room_bg_${activeRoom}`);
+      log(`Grundriss für '${activeRoom}' gelöscht.`);
+      renderActiveTab();
+    }
+
     async function updateDevicePosition(deviceId, x, y) {
       try {
         const response = await fetch(`/devices/${deviceId}`, {
@@ -2485,7 +2605,6 @@
 
     // Pointer-based Canvas Drag & Drop implementation (works for Mouse + Touch!)
     function onPinPointerDown(e, deviceId) {
-      // Prevent popover clicking from triggering drag
       if (e.target.closest('.pin-popover')) return;
       
       e.preventDefault();
@@ -2541,7 +2660,6 @@
       
       dragPin = null;
       
-      // Auto-save the new position to Cosmos
       await updateDevicePosition(deviceId, x, y);
     }
 
@@ -2660,13 +2778,118 @@
         wateringDurationInput.value = config.watering_duration_sec || "";
         sleepModeSelect.value = String(Boolean(config.sleep_mode));
         wakeIntervalInput.value = config.wake_interval_sec || "";
+        flowRateInput.value = config.flow_rate_ml_sec || 15;
         firmwareVersionInput.value = ota.version || "";
-        detailsMeta.textContent = `Status: ${device.status || "-"} | Zuletzt: ${device.last_seen_utc || "-"}`;
+        
+        detailsMeta.textContent = `Status: ${device.status || "-"} | Zuletzt: ${device.last_seen_utc ? formatRelativeTime(device.last_seen_utc) : "-"}`;
         detailsJson.textContent = JSON.stringify(device, null, 2);
+
+        // Water Usage Stats
+        const flowRate = config.flow_rate_ml_sec || 15;
+        const history = device.irrigation_history || [];
+        let totalWaterUsageMl = 0;
+        for (const cycle of history) {
+          if (cycle.duration_sec != null) {
+            totalWaterUsageMl += cycle.duration_sec * flowRate;
+          }
+        }
+        const usageVal = document.getElementById("waterUsageVal");
+        if (totalWaterUsageMl >= 1000) {
+          usageVal.textContent = `${(totalWaterUsageMl / 1000).toFixed(2)} Liter (${history.length} Zyklen)`;
+        } else {
+          usageVal.textContent = `${totalWaterUsageMl} ml (${history.length} Zyklen)`;
+        }
+
+        // Render Telemetry Chart
+        renderTelemetryChart(device);
+
       } catch (error) {
         detailsMeta.textContent = `Fehler: ${String(error)}`;
         detailsJson.textContent = String(error);
+        document.getElementById("chartContainer").style.display = "none";
       }
+    }
+
+    function renderTelemetryChart(device) {
+      const history = [...(device.telemetry_history || [])].reverse(); // reverse so chronological
+      const canvas = document.getElementById("telemetryChart");
+      
+      if (myDetailsChart) {
+        myDetailsChart.destroy();
+        myDetailsChart = null;
+      }
+      
+      if (history.length === 0) {
+        document.getElementById("chartContainer").style.display = "none";
+        return;
+      }
+      
+      document.getElementById("chartContainer").style.display = "block";
+      const labels = history.map(h => formatRelativeTime(h.reported_at_utc || h.timestamp));
+      const moistureData = history.map(h => h.soil_moisture_pct);
+      const tempData = history.map(h => h.temperature_c);
+      
+      const ctx = canvas.getContext("2d");
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+      const labelColor = isDark ? '#9ca3af' : '#64748b';
+      
+      myDetailsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Bodenfeuchte (%)',
+              data: moistureData,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.05)',
+              fill: true,
+              tension: 0.35,
+              borderWidth: 2,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Temp (°C)',
+              data: tempData,
+              borderColor: '#ef4444',
+              backgroundColor: 'transparent',
+              tension: 0.35,
+              borderWidth: 1.5,
+              borderDash: [3, 3],
+              yAxisID: 'yTemp'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: labelColor, font: { family: 'inherit', size: 11 } }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: gridColor },
+              ticks: { color: labelColor, maxTicksLimit: 6, font: { size: 10 } }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              grid: { color: gridColor },
+              ticks: { color: labelColor, font: { size: 10 } },
+              title: { display: true, text: 'Feuchtigkeit (%)', color: labelColor, font: { size: 10, weight: 'bold' } }
+            },
+            yTemp: {
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { color: labelColor, font: { size: 10 } },
+              title: { display: true, text: 'Temperatur (°C)', color: labelColor, font: { size: 10, weight: 'bold' } }
+            }
+          }
+        }
+      });
     }
 
     async function uploadFirmware() {
@@ -2729,6 +2952,7 @@
               watering_duration_sec: Number(wateringDurationInput.value || 60),
               sleep_mode: sleepModeSelect.value === "true",
               wake_interval_sec: Number(wakeIntervalInput.value || 600),
+              flow_rate_ml_sec: Number(flowRateInput.value || 15),
             },
           }),
         });
@@ -2761,7 +2985,6 @@
       else if (action === "identify") body = { action: "identify", duration_sec: 15 };
       else if (action === "relay_toggle") body = { action };
       else if (action === "water_now") {
-        // Find configuration duration from corresponding form or fall back to default
         const form = document.querySelector(`[data-schedule-form="${deviceId}"]`);
         const duration = Number(form?.querySelector('[data-field="duration_sec"]')?.value || 21);
         body = { action: "water_now", duration_sec: duration };
@@ -2889,7 +3112,6 @@
       const deviceId = btn.getAttribute("data-device");
       const action = btn.getAttribute("data-action");
       if (deviceId && action) {
-        // Prevent map popovers from closing when triggering actions inside them
         event.stopPropagation();
         await sendAction(deviceId, action);
       }
@@ -2899,6 +3121,7 @@
     const onboardForm = document.getElementById("onboardForm");
     const deviceIdInput = document.getElementById("deviceId");
     const deviceNameInput = document.getElementById("deviceName");
+    const deviceRoomInput = document.getElementById("deviceRoom");
     const cancelBtn = document.getElementById("cancelBtn");
 
     cancelBtn.addEventListener("click", () => { onboardModal.classList.remove("open"); onboardForm.reset(); });
@@ -2908,12 +3131,13 @@
       event.preventDefault();
       const serial = deviceIdInput.value.trim();
       const name = deviceNameInput.value.trim();
+      const room = deviceRoomInput.value.trim();
       if (!serial || !name) { log("Seriennummer und Name sind Pflicht."); return; }
       try {
         const response = await fetch("/devices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ serial_number: serial, name }),
+          body: JSON.stringify({ serial_number: serial, name, room }),
         });
         const data = await parseApiResponse(response);
         if (!response.ok) throw new Error(data.message || "Anlegen fehlgeschlagen");
