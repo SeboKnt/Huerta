@@ -887,9 +887,12 @@
           const alertBadge = alerts.length > 0 ? `<span class="chip" style="margin-left: 8px;">${alerts.length} alert${alerts.length > 1 ? "s" : ""}</span>` : "";
           const uptime = typeof d.stats?.uptime_seconds === "number" ? `${Math.round(d.stats.uptime_seconds / 3600)}h uptime` : "no uptime";
           const scheduleSummary = formatSchedule(d.watering_schedule);
+          const plantContext = d.plant_context || {};
+          const plantLabel = plantContext.plant_name || d.name || "Unnamed plant";
+          const roomLabel = plantContext.room || "Unknown room";
           return `
           <tr>
-            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong>${alertBadge}</td>
+            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong>${alertBadge}<br/><span class="telemetry-small">Plant: ${plantLabel}<br/>Room: ${roomLabel}</span></td>
             <td>${statusChip(status)}</td>
             <td>${d.firmware || "-"}</td>
             <td><span class="last-seen">${d.last_seen_utc || "-"}</span></td>
@@ -938,6 +941,7 @@
         const ota = device.ota_status || {};
         const history = Array.isArray(device.irrigation_history) ? device.irrigation_history : [];
         const schedule = device.watering_schedule || {};
+        const plantContext = device.plant_context || {};
         activeDeviceId = deviceId;
         wifiSsidInput.value = config.wifi_ssid || "";
         wifiPasswordInput.value = config.wifi_password || "";
@@ -948,6 +952,7 @@
         firmwareVersionInput.value = ota.version || "";
         detailsMeta.textContent = `Status: ${device.status || "-"} | Connected: ${device.connected ? "yes" : "no"} | Last seen: ${device.last_seen_utc || "-"}`;
         detailsJson.textContent = JSON.stringify({
+          plant_context: plantContext,
           ...device,
           telemetry,
           device_config: config,

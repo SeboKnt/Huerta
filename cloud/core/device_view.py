@@ -143,6 +143,22 @@ def _get_watering_schedule(item: dict) -> dict:
     }
 
 
+def _get_plant_context(item: dict) -> dict:
+    profile = item.get("plant_profile")
+    if not isinstance(profile, dict):
+        profile = {}
+
+    return {
+        "plant_name": profile.get("plant_name") or item.get("name", "Unnamed plant"),
+        "plant_species": profile.get("plant_species", ""),
+        "room": profile.get("room", "Unknown room"),
+        "temperature_c": profile.get("temperature_c"),
+        "humidity_pct": profile.get("humidity_pct"),
+        "soil_moisture_pct": profile.get("soil_moisture_pct"),
+        "notes": profile.get("notes", ""),
+    }
+
+
 def _get_relay_state(item: dict) -> str:
     state = item.get("relay_debug_state")
     if isinstance(state, str) and state.strip():
@@ -217,4 +233,5 @@ def _to_device_response(item: dict) -> dict:
         "device_config": _get_device_config(item),
         "ota_status": _get_ota_status(item),
         "watering_schedule": _get_watering_schedule(item),
+        "plant_context": _get_plant_context(item),
     }

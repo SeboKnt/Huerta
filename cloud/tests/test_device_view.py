@@ -5,6 +5,7 @@ from core.device_view import (
     _get_device_config,
     _get_irrigation_history,
     _get_ota_status,
+    _get_plant_context,
     _get_relay_state,
     _get_stats,
     _get_watering_schedule,
@@ -60,6 +61,23 @@ class DeviceViewTests(unittest.TestCase):
         schedule = _get_watering_schedule(item)
         self.assertEqual(ota_status["state"], "installing")
         self.assertEqual(schedule["summary"], "Every 3h for 90s; Monday at 14:00")
+
+    def test_plant_context_exposes_room_and_climate(self):
+        item = {
+            "plant_profile": {
+                "plant_name": "Basil",
+                "plant_species": "Ocimum basilicum",
+                "room": "Kitchen",
+                "temperature_c": 24,
+                "humidity_pct": 62,
+                "soil_moisture_pct": 41,
+            }
+        }
+        context = _get_plant_context(item)
+        self.assertEqual(context["plant_name"], "Basil")
+        self.assertEqual(context["room"], "Kitchen")
+        self.assertEqual(context["temperature_c"], 24)
+        self.assertEqual(context["soil_moisture_pct"], 41)
 
 
 if __name__ == "__main__":
