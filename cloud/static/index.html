@@ -205,6 +205,53 @@
       font-size: 0.84rem;
     }
 
+    .relay-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f7f3e8;
+      cursor: pointer;
+      user-select: none;
+      min-height: 34px;
+    }
+
+    .relay-switch input {
+      display: none;
+    }
+
+    .relay-switch .track {
+      width: 42px;
+      height: 24px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      position: relative;
+      transition: background 0.2s ease;
+    }
+
+    .relay-switch .track::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s ease;
+    }
+
+    .relay-switch input:checked + .track {
+      background: var(--accent);
+    }
+
+    .relay-switch input:checked + .track::after {
+      transform: translateX(18px);
+    }
+
     .btn-soft {
       background: #f7f3e8;
     }
@@ -564,7 +611,7 @@
             <th>Status</th>
             <th>Firmware</th>
             <th>Last Seen</th>
-            <th>Telemetry</th>
+            <th>Summary</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -787,21 +834,26 @@
 
         tableBody.innerHTML = devices.map((d) => {
           const status = d.connected ? "online" : (d.status === "restarting" ? "restarting" : "offline");
+          const alerts = Array.isArray(d.alerts) ? d.alerts : [];
+          const alertBadge = alerts.length > 0 ? `<span class="chip" style="margin-left: 8px;">${alerts.length} alert${alerts.length > 1 ? "s" : ""}</span>` : "";
+          const uptime = typeof d.stats?.uptime_seconds === "number" ? `${Math.round(d.stats.uptime_seconds / 3600)}h uptime` : "no uptime";
           return `
           <tr>
-            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong></td>
+            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong>${alertBadge}</td>
             <td>${statusChip(status)}</td>
             <td>${d.firmware || "-"}</td>
             <td><span class="last-seen">${d.last_seen_utc || "-"}</span></td>
-            <td><span class="telemetry-small">${formatTelemetry(d.telemetry)}</span></td>
+            <td><span class="telemetry-small">${uptime}<br/>${formatTelemetry(d.telemetry)}</span></td>
             <td>
               <div class="actions-grid">
                 <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
                 <button class="details-open-btn btn-soft" type="button" data-device-details="true" data-device="${d.id}">Details</button>
                 <button class="btn-soft" type="button" data-action="identify" data-device="${d.id}">Identify</button>
-                <button class="btn-accent" type="button" data-action="relay_toggle" data-device="${d.id}">Toggle Relay</button>
-                <button class="btn-accent" type="button" data-action="relay_on" data-device="${d.id}">Relay ON</button>
-                <button class="btn-soft" type="button" data-action="relay_off" data-device="${d.id}">Relay OFF</button>
+                <label class="relay-switch" data-device="${d.id}">
+                  <input type="checkbox" data-action="relay_toggle" data-device="${d.id}" ${d.relay_debug_state === "on" ? "checked" : ""} />
+                  <span class="track"></span>
+                  <span>Relay</span>
+                </label>
                 <button class="btn-soft" type="button" data-action="restart" data-device="${d.id}">Restart</button>
                 <button class="btn-danger" type="button" data-action="delete_device" data-device="${d.id}">Delete</button>
               </div>
@@ -873,7 +925,7 @@
         body = { action: "restart" };
       } else if (action === "identify") {
         body = { action: "identify", duration_sec: 15 };
-      } else if (action === "relay_toggle" || action === "relay_on" || action === "relay_off") {
+      } else if (action === "relay_toggle") {
         body = { action };
       } else {
         return;
@@ -1053,6 +1105,15 @@
         const deviceId = detailsBtn.getAttribute("data-device");
         if (deviceId) {
           await openDetails(deviceId);
+        }
+        return;
+      }
+
+      const toggle = event.target.closest("label.relay-switch");
+      if (toggle) {
+        const deviceId = toggle.getAttribute("data-device");
+        if (deviceId) {
+          await sendAction(deviceId, "relay_toggle");
         }
         return;
       }

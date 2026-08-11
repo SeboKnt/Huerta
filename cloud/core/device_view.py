@@ -64,11 +64,13 @@ def _get_stats(item: dict) -> dict:
         uptime_seconds = max(0, int((now - created_at).total_seconds()))
 
     history = item.get("telemetry_history") if isinstance(item.get("telemetry_history"), list) else []
+    alerts = _get_alerts(item)
     return {
         "uptime_seconds": uptime_seconds,
         "connected": _is_connected(item),
         "telemetry_points": len(history),
-        "alerts": _get_alerts(item),
+        "alert_count": len(alerts),
+        "alerts": alerts,
     }
 
 
