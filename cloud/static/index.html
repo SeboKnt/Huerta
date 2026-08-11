@@ -542,12 +542,13 @@
     </section>
 
     <section class="topbar">
-      <div style="display: flex; gap: 8px; align-items: center;">
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <span id="deviceCount" class="badge">Loading devices...</span>
         <span id="cosmosStatus" class="health-badge">
           <span id="cosmosDot" class="health-dot" aria-hidden="true"></span>
           <span id="cosmosText">Cosmos: checking...</span>
         </span>
+        <input id="deviceSearch" type="search" placeholder="Search devices" style="min-width: 220px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; font-family: inherit;" />
       </div>
       <div style="display: flex; gap: 8px;">
         <button id="reloadBtn" type="button">Reload</button>
@@ -650,6 +651,7 @@
   <script>
     const tableBody = document.getElementById("deviceTable");
     const countBadge = document.getElementById("deviceCount");
+    const deviceSearchInput = document.getElementById("deviceSearch");
     const cosmosDot = document.getElementById("cosmosDot");
     const cosmosText = document.getElementById("cosmosText");
     const buildInfoText = document.getElementById("buildInfoText");
@@ -694,6 +696,18 @@
       const cpu = typeof telemetry.cpu_load_pct === "number" ? `CPU ${telemetry.cpu_load_pct}%` : "CPU -";
       const uptime = typeof telemetry.uptime_sec === "number" ? `up ${telemetry.uptime_sec}s` : "uptime -";
       return `${ram} | ${cpu} | ${uptime}`;
+    }
+
+    function getFilteredDevices(devices) {
+      const query = (deviceSearchInput?.value || "").trim().toLowerCase();
+      if (!query) {
+        return devices;
+      }
+
+      return devices.filter((device) => {
+        const haystack = `${device.name || ""} ${device.id || ""} ${device.status || ""}`.toLowerCase();
+        return haystack.includes(query);
+      });
     }
 
     function redirectToMicrosoftLogin() {
@@ -785,6 +799,7 @@
                 <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
                 <button class="details-open-btn btn-soft" type="button" data-device-details="true" data-device="${d.id}">Details</button>
                 <button class="btn-soft" type="button" data-action="identify" data-device="${d.id}">Identify</button>
+                <button class="btn-accent" type="button" data-action="relay_toggle" data-device="${d.id}">Toggle Relay</button>
                 <button class="btn-accent" type="button" data-action="relay_on" data-device="${d.id}">Relay ON</button>
                 <button class="btn-soft" type="button" data-action="relay_off" data-device="${d.id}">Relay OFF</button>
                 <button class="btn-soft" type="button" data-action="restart" data-device="${d.id}">Restart</button>
@@ -858,7 +873,7 @@
         body = { action: "restart" };
       } else if (action === "identify") {
         body = { action: "identify", duration_sec: 15 };
-      } else if (action === "relay_on" || action === "relay_off") {
+      } else if (action === "relay_toggle" || action === "relay_on" || action === "relay_off") {
         body = { action };
       } else {
         return;
@@ -1091,6 +1106,7 @@
     });
 
     reloadBtn.addEventListener("click", loadDevices);
+    deviceSearchInput.addEventListener("input", loadDevices);
     terminalCloseBtn.addEventListener("click", closeTerminal);
     detailsCloseBtn.addEventListener("click", () => detailsModal.classList.remove("open"));
     terminalSendBtn.addEventListener("click", sendTerminalCommand);

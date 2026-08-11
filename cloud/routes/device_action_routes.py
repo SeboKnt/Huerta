@@ -43,6 +43,13 @@ def device_action(req: func.HttpRequest) -> func.HttpResponse:
     action = body.get("action")
     if action == "restart":
         item["status"] = "restarting"
+    elif action == "relay_toggle":
+        current_state = str(item.get("relay_debug_state", "")).strip().lower()
+        next_state = "off" if current_state == "on" else "on"
+        item["relay_debug_requested"] = True
+        item["relay_debug_state"] = next_state
+        item["relay_debug_request_id"] = str(uuid.uuid4())
+        item["relay_debug_requested_at_utc"] = _utc_now_iso()
     elif action == "identify":
         duration_sec = body.get("duration_sec", 15)
         if not isinstance(duration_sec, int) or duration_sec < 1 or duration_sec > 120:
@@ -68,7 +75,7 @@ def device_action(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response(
             {
                 "status": "error",
-                "message": "unsupported action, use 'restart', 'identify', 'relay_on' or 'relay_off'",
+                "message": "unsupported action, use 'restart', 'identify', 'relay_toggle', 'relay_on' or 'relay_off'",
             },
             status_code=400,
         )

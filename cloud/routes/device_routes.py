@@ -6,7 +6,7 @@ from core.auth import _compute_device_auth_hash, _require_write_access
 from core.db import _get_container_client
 from core.http import _json_response
 from core.time_utils import _utc_now_iso
-from core.device_view import _to_device_response
+from core.device_view import _get_alerts, _get_stats, _to_device_response
 from routes.health_routes import index
 
 
@@ -36,6 +36,37 @@ def list_devices(req: func.HttpRequest) -> func.HttpResponse:
             {"status": "error", "message": f"failed to load devices: {exc}"},
             status_code=500,
         )
+
+
+@app.route(route="devices/{device_id}/summary", methods=["GET"])
+def get_device_summary(req: func.HttpRequest) -> func.HttpResponse:
+    device_id = req.route_params.get("device_id", "")
+    try:
+        container = _get_container_client()
+        item = container.read_item(item=device_id, partition_key=device_id)
+    except exceptions.CosmosResourceNotFoundError:
+        return _json_response(
+            {"status": "error", "message": f"device '{device_id}' not found"},
+            status_code=404,
+        )
+    except Exception as exc:
+        return _json_response(
+            {"status": "error", "message": f"failed to load device summary: {exc}"},
+            status_code=500,
+        )
+
+    return _json_response(
+        {
+            "status": "ok",
+            "device_id": device_id,
+            "summary": {
+                "stats": _get_stats(item),
+                "alerts": _get_alerts(item),
+                "relay_state": str(item.get("relay_debug_state", "")).strip().lower() or "off",
+            },
+        },
+        status_code=200,
+    )
 
 
 @app.route(route="devices/{device_id}", methods=["GET"])
@@ -191,12 +222,14 @@ def add_device(req: func.HttpRequest) -> func.HttpResponse:
         "firmware": "unknown",
         "ip": "0.0.0.0",
         "last_seen_utc": _utc_now_iso(),
+        "created_at_utc": _utc_now_iso(),
         "relay_debug_requested": False,
         "relay_debug_state": "",
         "relay_debug_request_id": "",
         "terminal_session_active": False,
         "terminal_commands": [],
         "terminal_output": [],
+        "telemetry_history": [],
     }
 
     try:
