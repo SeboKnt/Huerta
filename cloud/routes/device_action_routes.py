@@ -8,7 +8,7 @@ from core.auth import _require_write_access
 from core.db import _get_container_client
 from core.http import _json_response
 from core.time_utils import _utc_now_iso
-from core.device_view import _to_device_response
+from core.device_view import _append_irrigation_cycle, _get_device_config, _to_device_response
 
 
 @app.route(route="devices/{device_id}/action", methods=["POST"])
@@ -71,11 +71,30 @@ def device_action(req: func.HttpRequest) -> func.HttpResponse:
         item["relay_debug_state"] = "off"
         item["relay_debug_request_id"] = str(uuid.uuid4())
         item["relay_debug_requested_at_utc"] = _utc_now_iso()
+    elif action == "water_now":
+        duration_sec = body.get("duration_sec")
+        config = _get_device_config(item)
+        if not isinstance(duration_sec, int):
+            try:
+                duration_sec = int(duration_sec)
+            except (TypeError, ValueError):
+                duration_sec = config.get("watering_duration_sec", 60)
+        if duration_sec < 1 or duration_sec > 600:
+            return _json_response(
+                {"status": "error", "message": "duration_sec must be an integer between 1 and 600"},
+                status_code=400,
+            )
+        item["relay_debug_requested"] = True
+        item["relay_debug_state"] = "on"
+        item["relay_debug_request_id"] = str(uuid.uuid4())
+        item["relay_debug_requested_at_utc"] = _utc_now_iso()
+        item["watering_duration_pending_sec"] = duration_sec
+        _append_irrigation_cycle(item, duration_sec, source="manual")
     else:
         return _json_response(
             {
                 "status": "error",
-                "message": "unsupported action, use 'restart', 'identify', 'relay_toggle', 'relay_on' or 'relay_off'",
+                "message": "unsupported action, use 'restart', 'identify', 'relay_toggle', 'relay_on', 'relay_off' or 'water_now'",
             },
             status_code=400,
         )

@@ -10,6 +10,9 @@ def _extract_telemetry(body: dict) -> dict:
     uptime_sec = body.get("uptime_sec", telemetry.get("uptime_sec"))
     stack_free_words = body.get("stack_free_words", telemetry.get("stack_free_words"))
     water_level_percent = body.get("water_level_percent", telemetry.get("water_level_percent"))
+    temperature_c = body.get("temperature_c", telemetry.get("temperature_c"))
+    humidity_pct = body.get("humidity_pct", telemetry.get("humidity_pct"))
+    soil_moisture_pct = body.get("soil_moisture_pct", telemetry.get("soil_moisture_pct"))
 
     if not isinstance(ram_free_bytes, int):
         ram_free_bytes = None
@@ -24,6 +27,23 @@ def _extract_telemetry(body: dict) -> dict:
     if not isinstance(water_level_percent, int):
         water_level_percent = None
 
+    def _normalize_float(value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    temperature_c = _normalize_float(temperature_c)
+    humidity_pct = _normalize_float(humidity_pct)
+    soil_moisture_pct = _normalize_float(soil_moisture_pct)
+
+    if humidity_pct is not None:
+        humidity_pct = max(0.0, min(100.0, humidity_pct))
+    if soil_moisture_pct is not None:
+        soil_moisture_pct = max(0.0, min(100.0, soil_moisture_pct))
+
     if cpu_load_pct is not None:
         if cpu_load_pct < 0:
             cpu_load_pct = 0
@@ -37,6 +57,9 @@ def _extract_telemetry(body: dict) -> dict:
         "uptime_sec": uptime_sec,
         "stack_free_words": stack_free_words,
         "water_level_percent": water_level_percent,
+        "temperature_c": temperature_c,
+        "humidity_pct": humidity_pct,
+        "soil_moisture_pct": soil_moisture_pct,
         "reported_at_utc": _utc_now_iso(),
     }
 

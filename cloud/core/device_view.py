@@ -23,6 +23,9 @@ def _telemetry_summary(item: dict) -> dict:
         "stack_free_words": telemetry.get("stack_free_words"),
         "reported_at_utc": telemetry.get("reported_at_utc", ""),
         "water_level_percent": telemetry.get("water_level_percent"),
+        "temperature_c": telemetry.get("temperature_c"),
+        "humidity_pct": telemetry.get("humidity_pct"),
+        "soil_moisture_pct": telemetry.get("soil_moisture_pct"),
     }
 
 
@@ -31,6 +34,19 @@ def _get_irrigation_history(item: dict) -> list[dict]:
     if not isinstance(history, list):
         return []
     return [entry for entry in history if isinstance(entry, dict)]
+
+
+def _append_irrigation_cycle(item: dict, duration_sec: int, source: str = "manual") -> None:
+    history = _get_irrigation_history(item)
+    history.insert(
+        0,
+        {
+            "started_at_utc": _utc_now_iso(),
+            "duration_sec": int(duration_sec),
+            "source": source,
+        },
+    )
+    item["irrigation_history"] = history[:20]
 
 
 def _get_device_config(item: dict) -> dict:
@@ -101,6 +117,60 @@ def _get_ota_status(item: dict) -> dict:
     }
 
 
+def _merge_watering_schedule(item: dict, schedule_payload: dict) -> dict:
+    if not isinstance(schedule_payload, dict):
+        return _get_watering_schedule(item)
+
+    schedule = item.get("watering_schedule")
+    if not isinstance(schedule, dict):
+        schedule = {}
+
+    updates = {}
+    if "enabled" in schedule_payload:
+        updates["enabled"] = bool(schedule_payload["enabled"])
+    for key in ("interval_hours", "duration_sec"):
+        if key in schedule_payload:
+            try:
+                updates[key] = max(0, int(schedule_payload[key]))
+            except (TypeError, ValueError):
+                updates[key] = 0
+    for key in ("day", "start_time"):
+        if key in schedule_payload and isinstance(schedule_payload[key], str):
+            updates[key] = schedule_payload[key].strip()
+
+    merged = {**schedule, **updates}
+    item["watering_schedule"] = merged
+    return _get_watering_schedule(item)
+
+
+def _merge_plant_profile(item: dict, profile_payload: dict) -> dict:
+    if not isinstance(profile_payload, dict):
+        return _get_plant_context(item)
+
+    profile = item.get("plant_profile")
+    if not isinstance(profile, dict):
+        profile = {}
+
+    updates = {}
+    for key in ("plant_name", "plant_species", "room", "notes"):
+        if key in profile_payload and isinstance(profile_payload[key], str):
+            updates[key] = profile_payload[key].strip()
+    for key in ("temperature_c", "humidity_pct", "soil_moisture_pct"):
+        if key in profile_payload:
+            value = profile_payload[key]
+            if value is None or value == "":
+                updates[key] = None
+            else:
+                try:
+                    updates[key] = float(value)
+                except (TypeError, ValueError):
+                    pass
+
+    merged = {**profile, **updates}
+    item["plant_profile"] = merged
+    return _get_plant_context(item)
+
+
 def _get_watering_schedule(item: dict) -> dict:
     schedule = item.get("watering_schedule")
     if not isinstance(schedule, dict):
@@ -148,13 +218,23 @@ def _get_plant_context(item: dict) -> dict:
     if not isinstance(profile, dict):
         profile = {}
 
+    telemetry = item.get("telemetry_latest")
+    if not isinstance(telemetry, dict):
+        telemetry = {}
+
+    def _climate_value(telemetry_key: str, profile_key: str):
+        live = telemetry.get(telemetry_key)
+        if live is not None:
+            return live
+        return profile.get(profile_key)
+
     return {
         "plant_name": profile.get("plant_name") or item.get("name", "Unnamed plant"),
         "plant_species": profile.get("plant_species", ""),
         "room": profile.get("room", "Unknown room"),
-        "temperature_c": profile.get("temperature_c"),
-        "humidity_pct": profile.get("humidity_pct"),
-        "soil_moisture_pct": profile.get("soil_moisture_pct"),
+        "temperature_c": _climate_value("temperature_c", "temperature_c"),
+        "humidity_pct": _climate_value("humidity_pct", "humidity_pct"),
+        "soil_moisture_pct": _climate_value("soil_moisture_pct", "soil_moisture_pct"),
         "notes": profile.get("notes", ""),
     }
 

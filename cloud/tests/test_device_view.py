@@ -1,6 +1,7 @@
 import unittest
 
 from core.device_view import (
+    _append_irrigation_cycle,
     _get_alerts,
     _get_device_config,
     _get_irrigation_history,
@@ -9,6 +10,8 @@ from core.device_view import (
     _get_relay_state,
     _get_stats,
     _get_watering_schedule,
+    _merge_plant_profile,
+    _merge_watering_schedule,
 )
 
 
@@ -78,6 +81,39 @@ class DeviceViewTests(unittest.TestCase):
         self.assertEqual(context["room"], "Kitchen")
         self.assertEqual(context["temperature_c"], 24)
         self.assertEqual(context["soil_moisture_pct"], 41)
+
+    def test_plant_context_prefers_live_telemetry(self):
+        item = {
+            "plant_profile": {"temperature_c": 20, "humidity_pct": 50, "soil_moisture_pct": 30},
+            "telemetry_latest": {"temperature_c": 24.5, "humidity_pct": 62, "soil_moisture_pct": 41},
+        }
+        context = _get_plant_context(item)
+        self.assertEqual(context["temperature_c"], 24.5)
+        self.assertEqual(context["humidity_pct"], 62)
+
+    def test_merge_watering_schedule_and_plant_profile(self):
+        item = {}
+        schedule = _merge_watering_schedule(item, {
+            "enabled": True,
+            "interval_hours": 2,
+            "duration_sec": 21,
+            "day": "Monday",
+            "start_time": "14:00",
+        })
+        profile = _merge_plant_profile(item, {"room": "Kitchen", "soil_moisture_pct": 55})
+        self.assertTrue(schedule["enabled"])
+        self.assertEqual(schedule["interval_hours"], 2)
+        self.assertEqual(schedule["summary"], "Every 2h for 21s; Monday at 14:00")
+        self.assertEqual(profile["room"], "Kitchen")
+        self.assertEqual(profile["soil_moisture_pct"], 55)
+
+    def test_append_irrigation_cycle_keeps_recent_entries(self):
+        item = {"irrigation_history": [{"started_at_utc": "2024-01-01T00:00:00Z", "duration_sec": 10}]}
+        _append_irrigation_cycle(item, 21, source="manual")
+        history = _get_irrigation_history(item)
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0]["duration_sec"], 21)
+        self.assertEqual(history[0]["source"], "manual")
 
 
 if __name__ == "__main__":

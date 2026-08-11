@@ -8,7 +8,7 @@ from core.auth import _compute_device_auth_hash, _require_write_access
 from core.db import _get_container_client
 from core.http import _json_response
 from core.time_utils import _utc_now_iso
-from core.device_view import _get_alerts, _get_stats, _merge_device_config, _set_ota_status, _to_device_response
+from core.device_view import _get_alerts, _get_stats, _merge_device_config, _merge_plant_profile, _merge_watering_schedule, _set_ota_status, _to_device_response
 from routes.health_routes import index
 
 
@@ -137,6 +137,12 @@ def update_device(req: func.HttpRequest) -> func.HttpResponse:
 
     if "device_config" in body:
         _merge_device_config(item, body.get("device_config"))
+
+    if "watering_schedule" in body:
+        _merge_watering_schedule(item, body.get("watering_schedule"))
+
+    if "plant_profile" in body:
+        _merge_plant_profile(item, body.get("plant_profile"))
 
     if body.get("ota_action") in {"pending", "installing", "done", "failed", "rollback"}:
         ota_state = body.get("ota_action")

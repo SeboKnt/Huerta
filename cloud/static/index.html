@@ -1,25 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Huerta ESP32 Dashboard</title>
+  <title>Huerta Bewässerung</title>
   <style>
     :root {
-      --bg: #f1efe8;
+      --bg: #eef4ef;
       --panel: #fffdf8;
-      --ink: #25231d;
-      --muted: #6a6659;
-      --line: #ded8c9;
+      --ink: #1f2a24;
+      --muted: #5f6b63;
+      --line: #d5ddd7;
       --accent: #0d9488;
+      --accent-soft: #e6f6f3;
       --danger: #b42318;
       --ok: #1f7a3d;
-      --chip: #ece8db;
+      --warn: #855b00;
+      --chip: #e8efe9;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -27,183 +27,251 @@
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(circle at 80% 0%, #d8efe6 0%, transparent 35%),
-        radial-gradient(circle at 10% 100%, #f4e3cc 0%, transparent 35%),
+        radial-gradient(circle at 85% 0%, #cfe9dc 0%, transparent 32%),
+        radial-gradient(circle at 0% 100%, #f2e8d8 0%, transparent 28%),
         var(--bg);
-      padding: 28px;
+      padding: 24px;
     }
 
-    .wrap {
-      max-width: 1040px;
-      margin: 0 auto;
-    }
+    .wrap { max-width: 1200px; margin: 0 auto; }
 
-    .hero {
-      margin-bottom: 18px;
-      animation: rise 0.45s ease-out;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(1.5rem, 3.4vw, 2.6rem);
-      letter-spacing: 0.02em;
-    }
-
-    .subtitle {
-      margin: 8px 0 0;
-      color: var(--muted);
-    }
+    .hero { margin-bottom: 20px; animation: rise 0.45s ease-out; }
+    h1 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.4rem); }
+    .subtitle { margin: 8px 0 0; color: var(--muted); }
 
     .topbar {
       display: flex;
       gap: 10px;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 14px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
     }
 
-    .badge {
+    .badge, .health-badge {
       background: var(--chip);
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 6px 10px;
+      padding: 6px 12px;
       font-size: 0.85rem;
     }
 
-    .health-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--chip);
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 0.85rem;
-    }
-
+    .health-badge { display: inline-flex; align-items: center; gap: 8px; }
     .health-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      background: #9ca3af;
+      width: 10px; height: 10px; border-radius: 999px; background: #9ca3af;
+    }
+    .health-dot.up { background: #16a34a; box-shadow: 0 0 0 4px rgba(22,163,74,.15); }
+    .health-dot.down { background: #dc2626; box-shadow: 0 0 0 4px rgba(220,38,38,.15); }
+
+    .search-input {
+      min-width: 220px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-family: inherit;
+      background: #fff;
     }
 
-    .health-dot.up {
-      background: #16a34a;
-      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform .12s ease, border-color .15s ease;
+    }
+    button:hover { transform: translateY(-1px); border-color: #9fb0a4; }
+    .btn-dark { background: #1d2b24; color: #fff; border-color: #1d2b24; }
+    .btn-accent { background: var(--accent-soft); border-color: #b8e4dd; color: #0e5f58; }
+    .btn-danger { background: #fff3f2; border-color: #ffd9d6; color: #8a1c13; }
+    .btn-soft { background: #f4f1e8; }
+
+    .device-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
     }
 
-    .health-dot.down {
-      background: #dc2626;
-      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
-    }
-
-    .panel {
+    .device-card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(36, 34, 29, 0.08);
+      border-radius: 18px;
+      box-shadow: 0 12px 32px rgba(31,42,36,.07);
       overflow: hidden;
-      animation: rise 0.55s ease-out;
+      animation: rise .5s ease-out;
+      display: flex;
+      flex-direction: column;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th,
-    td {
-      padding: 12px 14px;
+    .card-header {
+      padding: 16px 18px 12px;
       border-bottom: 1px solid #ece7db;
-      text-align: left;
-      vertical-align: middle;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
     }
 
-    th {
-      background: #f7f3e8;
-      font-size: 0.82rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #656050;
-    }
+    .card-title { margin: 0; font-size: 1.15rem; }
+    .card-sub { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; }
 
     .chip {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       border-radius: 999px;
       padding: 4px 10px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       border: 1px solid transparent;
-      background: #f5f5f3;
-    }
-
-    .chip.online {
-      color: var(--ok);
-      background: #ebf8ef;
-      border-color: #ccebd5;
-    }
-
-    .chip.offline {
-      color: var(--danger);
-      background: #fff3f2;
-      border-color: #ffd9d6;
-    }
-
-    .chip.restarting {
-      color: #855b00;
-      background: #fff7e8;
-      border-color: #ffe3b3;
-    }
-
-    .identify-dot {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      margin-right: 8px;
-      border-radius: 999px;
-      background: transparent;
-      vertical-align: middle;
-    }
-
-    .identify-dot.active {
-      background: #dc2626;
-      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
-    }
-
-    .device-name {
-      cursor: text;
-    }
-
-    .device-name:hover {
-      text-decoration: underline;
-      text-decoration-style: dotted;
-    }
-
-    .last-seen {
       white-space: nowrap;
-      font-variant-numeric: tabular-nums;
+    }
+    .chip.online { color: var(--ok); background: #ebf8ef; border-color: #ccebd5; }
+    .chip.offline { color: var(--danger); background: #fff3f2; border-color: #ffd9d6; }
+    .chip.restarting { color: var(--warn); background: #fff7e8; border-color: #ffe3b3; }
+
+    .card-body { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
     }
 
-    .actions {
+    .metric {
+      background: #f7faf8;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      text-align: center;
+    }
+    .metric-label { display: block; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .metric-value { display: block; margin-top: 4px; font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .metric-value.missing { color: var(--muted); font-weight: 400; font-size: .95rem; }
+
+    .section-title {
+      margin: 0 0 8px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+    }
+
+    .schedule-form {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .schedule-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .schedule-form label.full { grid-column: 1 / -1; }
+
+    .schedule-form input,
+    .schedule-form select {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: inherit;
+      background: #fff;
+    }
+
+    .schedule-toggle {
       display: flex;
       align-items: center;
       gap: 8px;
-      flex-wrap: wrap;
+      font-size: 0.9rem;
     }
 
-    .actions-grid {
+    .calendar {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fafcf9;
+    }
+
+    .calendar-head {
       display: grid;
-      grid-template-columns: repeat(2, minmax(112px, 1fr));
-      gap: 6px;
-      min-width: 240px;
+      grid-template-columns: repeat(7, 1fr);
+      background: #eef4ef;
+      border-bottom: 1px solid var(--line);
     }
 
-    .actions-grid button {
-      padding: 7px 9px;
-      font-size: 0.84rem;
+    .calendar-head span {
+      padding: 6px 4px;
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
     }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .calendar-day {
+      min-height: 52px;
+      background: #fff;
+      padding: 4px;
+      font-size: 0.75rem;
+    }
+
+    .calendar-day.other { background: #f5f7f5; color: #9aa39c; }
+    .calendar-day.today { background: #f0faf7; box-shadow: inset 0 0 0 2px #b8e4dd; }
+    .calendar-day-num { font-weight: 600; margin-bottom: 2px; }
+
+    .calendar-event {
+      display: block;
+      margin-top: 2px;
+      padding: 1px 3px;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      color: #0e5f58;
+      font-size: 0.65rem;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .calendar-event.weekly { background: #fff4dd; color: #7a5200; }
+
+    .history-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .history-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid #ece7db;
+      font-size: 0.85rem;
+    }
+    .history-list li:last-child { border-bottom: none; }
+    .history-empty { padding: 10px; color: var(--muted); font-size: 0.85rem; text-align: center; }
+
+    .card-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+
+    .card-actions button { font-size: 0.84rem; padding: 8px 10px; }
 
     .relay-control {
       grid-column: 1 / -1;
@@ -211,130 +279,46 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 9px 10px;
-      border-radius: 10px;
       font-weight: 600;
-      color: #0f172a;
-      background: #f7f3e8;
-      border-color: #ded8c9;
       min-height: 40px;
     }
+    .relay-control.relay-on { background: var(--accent-soft); border-color: #bde7e2; color: #0e5f58; }
+    .relay-control.relay-off { background: #fff3f2; border-color: #ffd9d6; color: #8a1c13; }
+    .relay-dot { width: 9px; height: 9px; border-radius: 999px; background: currentColor; }
 
-    .relay-control.relay-on {
-      background: #e8f7f5;
-      border-color: #bde7e2;
-      color: #0e5f58;
-    }
-
-    .relay-control.relay-off {
-      background: #fff3f2;
-      border-color: #ffd9d6;
-      color: #8a1c13;
-    }
-
-    .relay-control .relay-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 999px;
-      background: currentColor;
-      opacity: 0.82;
-      box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
-    }
-
-    .btn-soft {
-      background: #f7f3e8;
-    }
-
-    .btn-danger {
-      background: #fff3f2;
-      border-color: #ffd9d6;
-      color: #8a1c13;
-    }
-
-    .btn-accent {
-      background: #e8f7f5;
-      border-color: #bde7e2;
-      color: #0e5f58;
-    }
-
-    .action-btn {
-      padding: 7px 10px;
-    }
-
-    .action-input {
-      width: 76px;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 7px 8px;
-      font-family: inherit;
-      font-size: 0.9rem;
-      background: #ffffff;
-    }
-
-    .action-select {
-      min-width: 150px;
-      border: 1px solid var(--line);
-      background: #ffffff;
-      border-radius: 9px;
-      padding: 7px 10px;
-      font-family: inherit;
-      font-size: 0.9rem;
-    }
-
-    .action-select:focus {
-      outline: none;
-      border-color: #b6b09d;
-    }
-
-    button {
-      border: 1px solid var(--line);
-      background: #ffffff;
-      border-radius: 9px;
-      padding: 7px 11px;
-      cursor: pointer;
-      transition: transform 0.12s ease, border-color 0.15s ease;
-    }
-
-    button:hover {
-      transform: translateY(-1px);
-      border-color: #b6b09d;
+    .empty-state {
+      background: var(--panel);
+      border: 1px dashed var(--line);
+      border-radius: 16px;
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--muted);
     }
 
     .log {
-      margin-top: 14px;
+      margin-top: 16px;
       padding: 12px;
-      background: #1d1f21;
+      background: #1d2b24;
       color: #f6f8fa;
       border-radius: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-family: ui-monospace, Menlo, monospace;
       font-size: 0.85rem;
-      min-height: 56px;
+      min-height: 48px;
       white-space: pre-wrap;
     }
 
-    .build-info {
-      margin-top: 10px;
-      text-align: right;
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
+    .build-info { margin-top: 10px; text-align: right; font-size: 0.8rem; color: var(--muted); }
 
     .modal {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(37, 35, 29, 0.4);
+      inset: 0;
+      background: rgba(31,42,36,.45);
       z-index: 1000;
       align-items: center;
       justify-content: center;
     }
-
-    .modal.open {
-      display: flex;
-    }
+    .modal.open { display: flex; }
 
     .modal-content {
       background: var(--panel);
@@ -343,25 +327,12 @@
       max-width: 480px;
       width: 90%;
       border: 1px solid var(--line);
-      box-shadow: 0 20px 60px rgba(36, 34, 29, 0.2);
+      box-shadow: 0 20px 60px rgba(31,42,36,.2);
     }
+    .modal h2 { margin: 0 0 16px; font-size: 1.35rem; }
 
-    .modal h2 {
-      margin: 0 0 16px;
-      font-size: 1.4rem;
-    }
-
-    .form-group {
-      margin-bottom: 14px;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 5px;
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--muted); }
     .form-group input {
       width: 100%;
       padding: 10px;
@@ -369,363 +340,157 @@
       border-radius: 8px;
       background: #fdfcf9;
       font-family: inherit;
-      font-size: 0.95rem;
     }
 
-    .form-group input:focus {
-      outline: none;
-      border-color: var(--accent);
-      background: #ffffff;
-    }
+    .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .modal-actions button { flex: 1; padding: 10px; }
+    .modal-actions button.submit { background: #1d2b24; color: #fff; border-color: #1d2b24; }
 
-    .modal-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 18px;
-    }
-
-    .modal-actions button {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      background: #ffffff;
-      cursor: pointer;
-      font-weight: 500;
-      transition: transform 0.12s ease, border-color 0.15s ease;
-    }
-
-    .modal-actions button:hover {
-      transform: translateY(-1px);
-      border-color: #b6b09d;
-    }
-
-    .modal-actions button.submit {
-      background: #1d1f21;
-      color: #ffffff;
-      border-color: #1d1f21;
-    }
-
-    .modal-actions button.submit:hover {
-      border-color: #3a3a3a;
-    }
-
-    .terminal-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.9rem;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    .terminal-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      background: #9ca3af;
-    }
-
-    .terminal-dot.online {
-      background: #16a34a;
-      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
-    }
-
-    .terminal-dot.offline {
-      background: #dc2626;
-      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
-    }
-
-    .terminal-meta {
-      font-size: 0.85rem;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    .terminal-output {
+    .terminal-output, .details-json {
       margin: 0;
       padding: 12px;
       background: #111317;
       color: #e9edf3;
       border-radius: 10px;
       border: 1px solid #2a2f37;
-      min-height: 220px;
-      max-height: 300px;
+      min-height: 180px;
+      max-height: 280px;
       overflow: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-family: ui-monospace, Menlo, monospace;
       font-size: 0.84rem;
-      line-height: 1.35;
       white-space: pre-wrap;
     }
 
-    .terminal-controls {
-      display: flex;
-      gap: 8px;
-      margin: 12px 0;
-    }
+    .terminal-meta { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 999px; background: #9ca3af; display: inline-block; }
+    .terminal-dot.online { background: #16a34a; }
+    .terminal-dot.offline { background: #dc2626; }
 
-    .terminal-controls button {
-      flex: 1;
-    }
-
-    .terminal-input-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .terminal-input {
-      flex: 1;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 9px 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.9rem;
-      background: #ffffff;
-    }
-
-    .terminal-open-btn {
-      background: #0f172a;
-      color: #ffffff;
-      border-color: #0f172a;
-    }
-
-    .details-open-btn {
-      background: #f4f1e8;
-    }
-
-    .telemetry-small {
-      display: block;
-      color: var(--muted);
-      font-size: 0.82rem;
-      line-height: 1.25;
-    }
-
-    .details-json {
-      margin: 12px 0 0;
-      padding: 12px;
-      background: #111317;
-      color: #e9edf3;
-      border-radius: 10px;
-      border: 1px solid #2a2f37;
-      min-height: 220px;
-      max-height: 360px;
-      overflow: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.84rem;
-      line-height: 1.35;
-      white-space: pre-wrap;
-    }
+    .terminal-controls, .terminal-input-row { display: flex; gap: 8px; margin: 10px 0; }
+    .terminal-input { flex: 1; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; font-family: ui-monospace, Menlo, monospace; }
 
     .inline-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(2, 1fr);
       gap: 10px;
       margin-top: 10px;
     }
-
-    .inline-grid label {
-      font-size: 0.9rem;
-      color: var(--muted);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .inline-grid input,
-    .inline-grid select {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font-family: inherit;
-      background: #fff;
-    }
-
-    .status-online {
-      color: var(--ok);
-    }
-
-    .status-offline {
-      color: var(--danger);
-    }
-
-    .status-restarting {
-      color: #855b00;
-    }
+    .inline-grid label { font-size: 0.9rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+    .inline-grid input, .inline-grid select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; background: #fff; }
 
     @keyframes rise {
-      from {
-        opacity: 0;
-        transform: translateY(8px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    @media (max-width: 850px) {
-      body {
-        padding: 14px;
-      }
-
-      table,
-      thead,
-      tbody,
-      tr,
-      th,
-      td {
-        display: block;
-      }
-
-      thead {
-        display: none;
-      }
-
-      tr {
-        border-bottom: 1px solid #ece7db;
-        padding: 8px 0;
-      }
-
-      td {
-        border-bottom: none;
-        padding: 6px 14px;
-      }
+    @media (max-width: 720px) {
+      body { padding: 14px; }
+      .metric-row { grid-template-columns: 1fr; }
+      .schedule-form { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <main class="wrap">
     <section class="hero">
-      <h1>Huerta ESP32 Dashboard</h1>
-      <p class="subtitle">ESP32 management dashboard with live Cosmos DB backend.</p>
+      <h1>Huerta Bewässerung</h1>
+      <p class="subtitle">Pflanzen, Klima und Bewässerungsplan auf einen Blick.</p>
     </section>
 
     <section class="topbar">
-      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <span id="deviceCount" class="badge">Loading devices...</span>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span id="deviceCount" class="badge">Lade Geräte…</span>
         <span id="cosmosStatus" class="health-badge">
-          <span id="cosmosDot" class="health-dot" aria-hidden="true"></span>
-          <span id="cosmosText">Cosmos: checking...</span>
+          <span id="cosmosDot" class="health-dot"></span>
+          <span id="cosmosText">Cosmos: prüfe…</span>
         </span>
-        <input id="deviceSearch" type="search" placeholder="Search devices" style="min-width: 220px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; font-family: inherit;" />
+        <input id="deviceSearch" class="search-input" type="search" placeholder="Geräte suchen" />
       </div>
-      <div style="display: flex; gap: 8px;">
-        <button id="reloadBtn" type="button">Reload</button>
-        <button id="onboardBtn" type="button" style="background: #1d1f21; color: #ffffff; border-color: #1d1f21;">Onboard ESP</button>
+      <div style="display:flex;gap:8px;">
+        <button id="reloadBtn" type="button">Aktualisieren</button>
+        <button id="onboardBtn" type="button" class="btn-dark">ESP hinzufügen</button>
       </div>
     </section>
 
-    <section class="panel">
-      <table>
-        <thead>
-          <tr>
-            <th>Device</th>
-            <th>Status</th>
-            <th>Firmware</th>
-            <th>Last Seen</th>
-            <th>Summary</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="deviceTable">
-          <tr><td colspan="6">Loading data...</td></tr>
-        </tbody>
-      </table>
+    <section id="deviceGrid" class="device-grid">
+      <div class="empty-state">Lade Daten…</div>
     </section>
 
-    <pre id="log" class="log">Ready.</pre>
-    <div class="build-info">Build: <span id="buildInfoText">loading...</span></div>
+    <pre id="log" class="log">Bereit.</pre>
+    <div class="build-info">Build: <span id="buildInfoText">lädt…</span></div>
   </main>
 
   <div id="onboardModal" class="modal">
     <div class="modal-content">
-      <h2>Onboard ESP32</h2>
+      <h2>ESP32 hinzufügen</h2>
       <form id="onboardForm">
         <div class="form-group">
-          <label for="deviceId">Serial number *</label>
-          <input
-            type="text"
-            id="deviceId"
-            name="deviceId"
-            placeholder="e.g. A1B2C3D4E5F6"
-            required
-          />
+          <label for="deviceId">Seriennummer *</label>
+          <input type="text" id="deviceId" required placeholder="z.B. A1B2C3D4E5F6" />
         </div>
         <div class="form-group">
-          <label for="deviceName">Device name *</label>
-          <input
-            type="text"
-            id="deviceName"
-            name="deviceName"
-            placeholder="e.g. Garden Node 03"
-            required
-          />
+          <label for="deviceName">Gerätename *</label>
+          <input type="text" id="deviceName" required placeholder="z.B. Küchen-Basilikum" />
         </div>
-        <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Tip: double-click a device name later to rename it.</p>
         <div class="modal-actions">
-          <button type="button" id="cancelBtn">Cancel</button>
-          <button type="submit" class="submit">Create</button>
+          <button type="button" id="cancelBtn">Abbrechen</button>
+          <button type="submit" class="submit">Anlegen</button>
         </div>
       </form>
     </div>
   </div>
 
   <div id="terminalModal" class="modal">
-    <div class="modal-content" style="max-width: 760px; width: 94%;">
+    <div class="modal-content" style="max-width:760px;width:94%;">
       <h2 id="terminalTitle">ESP Terminal</h2>
-      <div class="terminal-status">
-        <span id="terminalDot" class="terminal-dot" aria-hidden="true"></span>
-        <span id="terminalStatusText">Connection unknown</span>
+      <div class="terminal-meta">
+        <span id="terminalDot" class="terminal-dot"></span>
+        <span id="terminalStatusText">Verbindung unbekannt</span>
       </div>
-      <div id="terminalMeta" class="terminal-meta">Session not active</div>
-      <pre id="terminalOutput" class="terminal-output">Open a device terminal to start.</pre>
-
+      <div id="terminalMeta" class="terminal-meta">Keine aktive Sitzung</div>
+      <pre id="terminalOutput" class="terminal-output">Terminal öffnen…</pre>
       <div class="terminal-controls">
-        <button type="button" id="wakeBtn">Wake / Keep Awake</button>
-        <button type="button" id="sleepBtn">Request Deep Sleep</button>
+        <button type="button" id="wakeBtn">Aufwecken</button>
+        <button type="button" id="sleepBtn">Deep Sleep</button>
       </div>
-
       <div class="terminal-input-row">
-        <input id="terminalInput" class="terminal-input" type="text" placeholder="Type command and press Enter..." />
-        <button id="terminalSendBtn" type="button">Send</button>
+        <input id="terminalInput" class="terminal-input" type="text" placeholder="Befehl eingeben…" />
+        <button id="terminalSendBtn" type="button">Senden</button>
       </div>
-
-      <div class="modal-actions" style="margin-top: 14px;">
-        <button type="button" id="terminalCloseBtn">Close</button>
+      <div class="modal-actions">
+        <button type="button" id="terminalCloseBtn">Schließen</button>
       </div>
     </div>
   </div>
 
   <div id="detailsModal" class="modal">
-    <div class="modal-content" style="max-width: 780px; width: 94%;">
-      <h2 id="detailsTitle">Device details</h2>
-      <div id="detailsMeta" class="terminal-meta">Loading...</div>
-      <pre id="detailsJson" class="details-json">Open a device to inspect its current values.</pre>
+    <div class="modal-content" style="max-width:780px;width:94%;">
+      <h2 id="detailsTitle">Gerätedetails</h2>
+      <div id="detailsMeta" class="terminal-meta">Lädt…</div>
+      <pre id="detailsJson" class="details-json">Details laden…</pre>
       <div class="inline-grid">
         <label>Wi-Fi SSID<input id="wifiSsidInput" type="text" /></label>
-        <label>Wi-Fi Password<input id="wifiPasswordInput" type="password" /></label>
-        <label>Report Interval (s)<input id="reportIntervalInput" type="number" min="30" step="30" /></label>
-        <label>Watering Duration (s)<input id="wateringDurationInput" type="number" min="10" step="10" /></label>
-        <label>Sleep Mode<select id="sleepModeSelect"><option value="false">Disabled</option><option value="true">Enabled</option></select></label>
-        <label>Wake Interval (s)<input id="wakeIntervalInput" type="number" min="60" step="60" /></label>
+        <label>Wi-Fi Passwort<input id="wifiPasswordInput" type="password" /></label>
+        <label>Report-Intervall (s)<input id="reportIntervalInput" type="number" min="30" step="30" /></label>
+        <label>Bewässerungsdauer (s)<input id="wateringDurationInput" type="number" min="10" step="1" /></label>
+        <label>Sleep Mode<select id="sleepModeSelect"><option value="false">Aus</option><option value="true">An</option></select></label>
+        <label>Wake-Intervall (s)<input id="wakeIntervalInput" type="number" min="60" step="60" /></label>
       </div>
       <div class="inline-grid">
-        <label>Firmware Version<input id="firmwareVersionInput" type="text" /></label>
-        <label>Firmware File<input id="firmwareFileInput" type="file" accept=".bin,.elf,.hex,.fw" /></label>
+        <label>Firmware-Version<input id="firmwareVersionInput" type="text" /></label>
+        <label>Firmware-Datei<input id="firmwareFileInput" type="file" accept=".bin,.elf,.hex,.fw" /></label>
       </div>
-      <div class="modal-actions" style="margin-top: 14px;">
-        <button type="button" id="detailsCloseBtn">Close</button>
-        <button type="button" id="uploadFirmwareBtn" class="btn-accent">Upload firmware</button>
+      <div class="modal-actions">
+        <button type="button" id="detailsCloseBtn">Schließen</button>
+        <button type="button" id="uploadFirmwareBtn" class="btn-accent">Firmware hochladen</button>
         <button type="button" id="rollbackFirmwareBtn" class="btn-soft">Rollback</button>
-        <button type="button" id="saveConfigBtn" class="submit">Save config</button>
+        <button type="button" id="saveConfigBtn" class="submit">Speichern</button>
       </div>
     </div>
   </div>
 
   <script>
-    const tableBody = document.getElementById("deviceTable");
+    const deviceGrid = document.getElementById("deviceGrid");
     const countBadge = document.getElementById("deviceCount");
     const deviceSearchInput = document.getElementById("deviceSearch");
     const cosmosDot = document.getElementById("cosmosDot");
@@ -761,188 +526,386 @@
     const wakeBtn = document.getElementById("wakeBtn");
     const sleepBtn = document.getElementById("sleepBtn");
 
+    const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+    const WEEKDAY_MAP = {
+      monday: 1, montag: 1, mo: 1,
+      tuesday: 2, dienstag: 2, di: 2,
+      wednesday: 3, mittwoch: 3, mi: 3,
+      thursday: 4, donnerstag: 4, do: 4,
+      friday: 5, freitag: 5, fr: 5,
+      saturday: 6, samstag: 6, sa: 6,
+      sunday: 0, sonntag: 0, so: 0,
+    };
+
     let activeTerminalDeviceId = "";
     let activeDeviceId = "";
     let terminalPollId = null;
+    let cachedDevices = [];
 
     function log(message) {
-      const ts = new Date().toLocaleTimeString("en-US");
-      logBox.textContent = `[${ts}] ${message}`;
+      logBox.textContent = `[${new Date().toLocaleTimeString("de-DE")}] ${message}`;
     }
 
     function statusChip(status) {
       const safe = String(status || "unknown");
-      return `<span class="chip ${safe} ${safe === "online" ? "status-online" : safe === "offline" ? "status-offline" : safe === "restarting" ? "status-restarting" : ""}">${safe}</span>`;
+      return `<span class="chip ${safe}">${safe === "online" ? "Online" : safe === "offline" ? "Offline" : safe === "restarting" ? "Neustart" : safe}</span>`;
     }
 
-    function formatTelemetry(telemetry) {
-      if (!telemetry) {
-        return "-";
+    function formatMetric(value, unit) {
+      if (value === null || value === undefined || value === "") {
+        return `<span class="metric-value missing">–</span>`;
       }
-
-      const ram = typeof telemetry.ram_free_bytes === "number" ? `${Math.round(telemetry.ram_free_bytes / 1024)} KB free` : "RAM -";
-      const cpu = typeof telemetry.cpu_load_pct === "number" ? `CPU ${telemetry.cpu_load_pct}%` : "CPU -";
-      const uptime = typeof telemetry.uptime_sec === "number" ? `up ${telemetry.uptime_sec}s` : "uptime -";
-      const water = typeof telemetry.water_level_percent === "number" ? `Tank ${telemetry.water_level_percent}%` : "Tank -";
-      return `${ram} | ${cpu} | ${uptime} | ${water}`;
+      const num = Number(value);
+      if (Number.isNaN(num)) {
+        return `<span class="metric-value missing">–</span>`;
+      }
+      return `<span class="metric-value">${num.toFixed(num % 1 ? 1 : 0)}${unit}</span>`;
     }
 
-    function formatSchedule(schedule) {
-      if (!schedule || typeof schedule !== "object") {
-        return "No schedule";
+    function formatRelativeTime(iso) {
+      if (!iso) return "–";
+      const then = new Date(iso);
+      if (Number.isNaN(then.getTime())) return iso;
+      const diffSec = Math.round((Date.now() - then.getTime()) / 1000);
+      if (diffSec < 60) return `vor ${diffSec}s`;
+      if (diffSec < 3600) return `vor ${Math.round(diffSec / 60)} Min.`;
+      if (diffSec < 86400) return `vor ${Math.round(diffSec / 3600)} Std.`;
+      return then.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    }
+
+    function parseDayIndex(day) {
+      if (!day) return null;
+      return WEEKDAY_MAP[String(day).trim().toLowerCase()] ?? null;
+    }
+
+    function parseTimeParts(timeStr) {
+      if (!timeStr || !String(timeStr).includes(":")) return null;
+      const [h, m] = String(timeStr).split(":").map((x) => parseInt(x, 10));
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      return { hour: h, minute: m };
+    }
+
+    function buildWateringEvents(schedule, days = 7) {
+      const events = [];
+      if (!schedule || !schedule.enabled) return events;
+
+      const now = new Date();
+      const end = new Date(now);
+      end.setDate(end.getDate() + days);
+
+      const intervalHours = Number(schedule.interval_hours) || 0;
+      const durationSec = Number(schedule.duration_sec) || 0;
+      const dayIndex = parseDayIndex(schedule.day);
+      const timeParts = parseTimeParts(schedule.start_time);
+
+      if (intervalHours > 0) {
+        const stepMs = intervalHours * 3600000;
+        let cursor = new Date(now);
+        cursor.setMinutes(0, 0, 0);
+        while (cursor <= end) {
+          if (cursor >= now) {
+            events.push({
+              at: new Date(cursor),
+              label: `${durationSec}s`,
+              type: "interval",
+            });
+          }
+          cursor = new Date(cursor.getTime() + stepMs);
+        }
       }
-      return schedule.summary || "No schedule";
+
+      if (dayIndex !== null && timeParts) {
+        for (let i = 0; i <= days; i++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() + i);
+          d.setHours(timeParts.hour, timeParts.minute, 0, 0);
+          const jsDay = d.getDay();
+          if (jsDay === dayIndex && d >= now && d <= end) {
+            events.push({
+              at: d,
+              label: `${schedule.day || "Wochentag"} ${timeParts.hour.toString().padStart(2, "0")}:${timeParts.minute.toString().padStart(2, "0")} · ${durationSec}s`,
+              type: "weekly",
+            });
+          }
+        }
+      }
+
+      events.sort((a, b) => a.at - b.at);
+      const seen = new Set();
+      return events.filter((ev) => {
+        const key = ev.at.toISOString();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 40);
+    }
+
+    function renderCalendar(events) {
+      const now = new Date();
+      const start = new Date(now);
+      const mondayOffset = (start.getDay() + 6) % 7;
+      start.setDate(start.getDate() - mondayOffset);
+      start.setHours(0, 0, 0, 0);
+
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        days.push(d);
+      }
+
+      const eventsByDay = new Map();
+      for (const ev of events) {
+        const key = ev.at.toDateString();
+        if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+        eventsByDay.get(key).push(ev);
+      }
+
+      const head = WEEKDAYS.map((d) => `<span>${d}</span>`).join("");
+      const cells = days.map((day) => {
+        const isToday = day.toDateString() === now.toDateString();
+        const dayEvents = eventsByDay.get(day.toDateString()) || [];
+        const eventHtml = dayEvents.slice(0, 3).map((ev) =>
+          `<span class="calendar-event ${ev.type === "weekly" ? "weekly" : ""}">${ev.at.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · ${ev.label}</span>`
+        ).join("");
+        return `<div class="calendar-day ${isToday ? "today" : ""}">
+          <div class="calendar-day-num">${day.getDate()}</div>
+          ${eventHtml}
+        </div>`;
+      }).join("");
+
+      return `<div class="calendar"><div class="calendar-head">${head}</div><div class="calendar-grid">${cells}</div></div>`;
+    }
+
+    function renderHistory(history) {
+      const items = Array.isArray(history) ? history.slice(0, 5) : [];
+      if (items.length === 0) {
+        return `<div class="history-empty">Noch keine Bewässerungszyklen</div>`;
+      }
+      return `<ul class="history-list">${items.map((entry) => {
+        const when = formatRelativeTime(entry.started_at_utc);
+        const dur = entry.duration_sec != null ? `${entry.duration_sec}s` : "?";
+        const src = entry.source === "manual" ? "Manuell" : entry.source === "schedule" ? "Plan" : "Auto";
+        return `<li><span>${when} · ${dur}</span><span>${src}</span></li>`;
+      }).join("")}</ul>`;
+    }
+
+    function renderDeviceCard(device) {
+      const status = device.connected ? "online" : (device.status === "restarting" ? "restarting" : "offline");
+      const plant = device.plant_context || {};
+      const schedule = device.watering_schedule || {};
+      const telemetry = device.telemetry || {};
+      const history = device.irrigation_history || [];
+      const events = buildWateringEvents(schedule, 7);
+
+      const temp = plant.temperature_c ?? telemetry.temperature_c;
+      const humidity = plant.humidity_pct ?? telemetry.humidity_pct;
+      const soil = plant.soil_moisture_pct ?? telemetry.soil_moisture_pct;
+
+      return `
+        <article class="device-card" data-device-id="${device.id}">
+          <header class="card-header">
+            <div>
+              <h2 class="card-title">${plant.plant_name || device.name || "Unbenannte Pflanze"}</h2>
+              <p class="card-sub">${plant.room || "Unbekannter Raum"} · ${device.firmware || "–"}</p>
+            </div>
+            ${statusChip(status)}
+          </header>
+          <div class="card-body">
+            <div>
+              <h3 class="section-title">Klima</h3>
+              <div class="metric-row">
+                <div class="metric"><span class="metric-label">Raumtemp.</span>${formatMetric(temp, "°C")}</div>
+                <div class="metric"><span class="metric-label">Luftfeuchte</span>${formatMetric(humidity, "%")}</div>
+                <div class="metric"><span class="metric-label">Topf</span>${formatMetric(soil, "%")}</div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="section-title">Bewässerungsplan</h3>
+              <form class="schedule-form" data-schedule-form="${device.id}">
+                <label class="schedule-toggle full">
+                  <input type="checkbox" data-field="enabled" ${schedule.enabled ? "checked" : ""} />
+                  Plan aktiv
+                </label>
+                <label>Intervall (Std.)
+                  <input type="number" min="0" step="1" data-field="interval_hours" value="${schedule.interval_hours || 2}" />
+                </label>
+                <label>Dauer (Sek.)
+                  <input type="number" min="1" step="1" data-field="duration_sec" value="${schedule.duration_sec || 21}" />
+                </label>
+                <label>Wochentag
+                  <select data-field="day">
+                    ${["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((d) => {
+                      const labels = { "": "–", Monday: "Montag", Tuesday: "Dienstag", Wednesday: "Mittwoch", Thursday: "Donnerstag", Friday: "Freitag", Saturday: "Samstag", Sunday: "Sonntag" };
+                      const selected = (schedule.day || "Monday") === d ? "selected" : "";
+                      return `<option value="${d}" ${selected}>${labels[d]}</option>`;
+                    }).join("")}
+                  </select>
+                </label>
+                <label>Uhrzeit
+                  <input type="time" data-field="start_time" value="${schedule.start_time || "14:00"}" />
+                </label>
+                <label>Raum
+                  <input type="text" data-field="room" value="${plant.room || ""}" placeholder="z.B. Küche" />
+                </label>
+                <label>Topf-Feuchte (%)
+                  <input type="number" min="0" max="100" step="1" data-field="soil_moisture_pct" value="${soil ?? ""}" placeholder="Manuell" />
+                </label>
+                <button type="button" class="btn-accent full" data-save-schedule="${device.id}">Plan speichern</button>
+              </form>
+              <p class="card-sub" style="margin-top:8px;">${schedule.summary || "Kein Plan"}</p>
+            </div>
+
+            <div>
+              <h3 class="section-title">Kalender (diese Woche)</h3>
+              ${renderCalendar(events)}
+            </div>
+
+            <div>
+              <h3 class="section-title">Letzte Zyklen</h3>
+              ${renderHistory(history)}
+            </div>
+
+            <div class="card-actions">
+              <button class="relay-control ${device.relay_debug_state === "on" ? "relay-on" : "relay-off"}" type="button" data-action="relay_toggle" data-device="${device.id}">
+                <span class="relay-dot"></span>
+                <span>Relais ${device.relay_debug_state === "on" ? "AN" : "AUS"}</span>
+              </button>
+              <button type="button" class="btn-accent" data-action="water_now" data-device="${device.id}">Jetzt gießen</button>
+              <button type="button" data-terminal-open="true" data-device="${device.id}">Terminal</button>
+              <button type="button" class="btn-soft" data-device-details="true" data-device="${device.id}">Details</button>
+              <button type="button" class="btn-soft" data-action="identify" data-device="${device.id}">Identifizieren</button>
+              <button type="button" class="btn-soft" data-action="restart" data-device="${device.id}">Neustart</button>
+              <button type="button" class="btn-danger" data-action="delete_device" data-device="${device.id}">Löschen</button>
+            </div>
+          </div>
+        </article>
+      `;
     }
 
     function getFilteredDevices(devices) {
       const query = (deviceSearchInput?.value || "").trim().toLowerCase();
-      if (!query) {
-        return devices;
-      }
-
+      if (!query) return devices;
       return devices.filter((device) => {
-        const haystack = `${device.name || ""} ${device.id || ""} ${device.status || ""}`.toLowerCase();
+        const plant = device.plant_context || {};
+        const haystack = `${device.name || ""} ${device.id || ""} ${plant.plant_name || ""} ${plant.room || ""}`.toLowerCase();
         return haystack.includes(query);
       });
     }
 
     function redirectToMicrosoftLogin() {
       const returnUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      const loginUrl = `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnUrl)}`;
-      window.location.href = loginUrl;
+      window.location.href = `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnUrl)}`;
     }
 
     async function parseApiResponse(response) {
       let data = {};
-      try {
-        data = await response.json();
-      } catch (error) {
-        data = {};
-      }
-
+      try { data = await response.json(); } catch (_) {}
       if (response.status === 401) {
-        log("Authentication required. Redirecting to Microsoft login...");
+        log("Anmeldung erforderlich…");
         redirectToMicrosoftLogin();
         throw new Error("authentication redirect");
       }
-
       return data;
     }
 
     async function refreshCosmosIndicator() {
       try {
-        const response = await fetch("/health", { method: "GET" });
+        const response = await fetch("/health");
         const data = await response.json();
-
-        if (typeof data.build === "string" && data.build.trim()) {
-          buildInfoText.textContent = data.build;
-        } else {
-          buildInfoText.textContent = "unknown";
-        }
-
+        buildInfoText.textContent = (typeof data.build === "string" && data.build.trim()) ? data.build : "unbekannt";
         if (response.ok && data.cosmos_connected === true) {
-          cosmosDot.classList.remove("down");
-          cosmosDot.classList.add("up");
-          cosmosText.textContent = "Cosmos: connected";
+          cosmosDot.className = "health-dot up";
+          cosmosText.textContent = "Cosmos: verbunden";
           return;
         }
-
-        cosmosDot.classList.remove("up");
-        cosmosDot.classList.add("down");
-        if (data.cosmos_configured === false) {
-          cosmosText.textContent = "Cosmos: not configured";
-        } else {
-          cosmosText.textContent = "Cosmos: disconnected";
-        }
-      } catch (error) {
-        cosmosDot.classList.remove("up");
-        cosmosDot.classList.add("down");
-        cosmosText.textContent = "Cosmos: unreachable";
-        buildInfoText.textContent = "unavailable";
+        cosmosDot.className = "health-dot down";
+        cosmosText.textContent = data.cosmos_configured === false ? "Cosmos: nicht konfiguriert" : "Cosmos: getrennt";
+      } catch (_) {
+        cosmosDot.className = "health-dot down";
+        cosmosText.textContent = "Cosmos: nicht erreichbar";
+        buildInfoText.textContent = "nicht verfügbar";
       }
     }
 
     async function loadDevices() {
       await refreshCosmosIndicator();
-      tableBody.innerHTML = `<tr><td colspan="7">Loading data...</td></tr>`;
+      deviceGrid.innerHTML = `<div class="empty-state">Lade Daten…</div>`;
 
       try {
-        const response = await fetch("/devices", { method: "GET" });
+        const response = await fetch("/devices");
         const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "API error");
-        }
+        if (!response.ok) throw new Error(data.message || "API-Fehler");
 
-        const devices = Array.isArray(data.devices) ? data.devices : [];
-        countBadge.textContent = `${devices.length} devices connected`;
+        cachedDevices = Array.isArray(data.devices) ? data.devices : [];
+        const devices = getFilteredDevices(cachedDevices);
+        countBadge.textContent = `${cachedDevices.length} Gerät${cachedDevices.length === 1 ? "" : "e"}`;
 
         if (devices.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="6">No devices available.</td></tr>`;
+          deviceGrid.innerHTML = `<div class="empty-state">Keine Geräte gefunden.</div>`;
           return;
         }
 
-        tableBody.innerHTML = devices.map((d) => {
-          const status = d.connected ? "online" : (d.status === "restarting" ? "restarting" : "offline");
-          const alerts = Array.isArray(d.alerts) ? d.alerts : [];
-          const alertBadge = alerts.length > 0 ? `<span class="chip" style="margin-left: 8px;">${alerts.length} alert${alerts.length > 1 ? "s" : ""}</span>` : "";
-          const uptime = typeof d.stats?.uptime_seconds === "number" ? `${Math.round(d.stats.uptime_seconds / 3600)}h uptime` : "no uptime";
-          const scheduleSummary = formatSchedule(d.watering_schedule);
-          const plantContext = d.plant_context || {};
-          const plantLabel = plantContext.plant_name || d.name || "Unnamed plant";
-          const roomLabel = plantContext.room || "Unknown room";
-          return `
-          <tr>
-            <td><span class="identify-dot ${d.identify_requested ? "active" : ""}" aria-hidden="true"></span><strong class="device-name" data-device="${d.id}" title="Double-click to rename">${d.name || "Unnamed device"}</strong>${alertBadge}<br/><span class="telemetry-small">Plant: ${plantLabel}<br/>Room: ${roomLabel}</span></td>
-            <td>${statusChip(status)}</td>
-            <td>${d.firmware || "-"}</td>
-            <td><span class="last-seen">${d.last_seen_utc || "-"}</span></td>
-            <td><span class="telemetry-small">${uptime}<br/>${formatTelemetry(d.telemetry)}<br/>Schedule: ${scheduleSummary}</span></td>
-            <td>
-              <div class="actions-grid">
-                <button class="relay-control ${d.relay_debug_state === "on" ? "relay-on" : "relay-off"}" type="button" data-action="relay_toggle" data-device="${d.id}">
-                  <span class="relay-dot" aria-hidden="true"></span>
-                  <span>Relay ${d.relay_debug_state === "on" ? "ON" : "OFF"}</span>
-                </button>
-                <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
-                <button class="details-open-btn btn-soft" type="button" data-device-details="true" data-device="${d.id}">Details</button>
-                <button class="btn-soft" type="button" data-action="identify" data-device="${d.id}">Identify</button>
-                <button class="btn-soft" type="button" data-action="restart" data-device="${d.id}">Restart</button>
-                <button class="btn-danger" type="button" data-action="delete_device" data-device="${d.id}">Delete</button>
-              </div>
-            </td>
-          </tr>
-        `;
-        }).join("");
-
-        log("Device list loaded successfully.");
+        deviceGrid.innerHTML = devices.map(renderDeviceCard).join("");
+        log("Dashboard aktualisiert.");
       } catch (error) {
-        tableBody.innerHTML = `<tr><td colspan="7">Error loading data: ${String(error)}</td></tr>`;
-        countBadge.textContent = "Error";
-        log(`Error: ${String(error)}`);
+        deviceGrid.innerHTML = `<div class="empty-state">Fehler: ${String(error)}</div>`;
+        countBadge.textContent = "Fehler";
+        log(`Fehler: ${String(error)}`);
+      }
+    }
+
+    async function saveSchedule(deviceId) {
+      const form = document.querySelector(`[data-schedule-form="${deviceId}"]`);
+      if (!form) return;
+
+      const getField = (name) => form.querySelector(`[data-field="${name}"]`);
+      const payload = {
+        watering_schedule: {
+          enabled: Boolean(getField("enabled")?.checked),
+          interval_hours: Number(getField("interval_hours")?.value || 0),
+          duration_sec: Number(getField("duration_sec")?.value || 21),
+          day: getField("day")?.value || "",
+          start_time: getField("start_time")?.value || "",
+        },
+        plant_profile: {
+          room: getField("room")?.value?.trim() || "",
+          soil_moisture_pct: getField("soil_moisture_pct")?.value === "" ? null : Number(getField("soil_moisture_pct")?.value),
+        },
+      };
+
+      try {
+        const response = await fetch(`/devices/${deviceId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await parseApiResponse(response);
+        if (!response.ok) throw new Error(data.message || "Speichern fehlgeschlagen");
+        log(`Bewässerungsplan für ${deviceId} gespeichert.`);
+        await loadDevices();
+      } catch (error) {
+        log(`Speichern fehlgeschlagen: ${String(error)}`);
       }
     }
 
     async function openDetails(deviceId) {
-      detailsTitle.textContent = `Device ${deviceId}`;
-      detailsMeta.textContent = "Loading current data...";
-      detailsJson.textContent = "Loading...";
+      detailsTitle.textContent = `Gerät ${deviceId}`;
+      detailsMeta.textContent = "Lädt…";
+      detailsJson.textContent = "Lädt…";
       detailsModal.classList.add("open");
 
       try {
-        const response = await fetch(`/devices/${deviceId}`, { method: "GET" });
+        const response = await fetch(`/devices/${deviceId}`);
         const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to load device details");
-        }
+        if (!response.ok) throw new Error(data.message || "Details nicht geladen");
 
         const device = data.device || {};
-        const telemetry = device.telemetry || {};
         const config = device.device_config || {};
         const ota = device.ota_status || {};
-        const history = Array.isArray(device.irrigation_history) ? device.irrigation_history : [];
-        const schedule = device.watering_schedule || {};
-        const plantContext = device.plant_context || {};
         activeDeviceId = deviceId;
+
         wifiSsidInput.value = config.wifi_ssid || "";
         wifiPasswordInput.value = config.wifi_password || "";
         reportIntervalInput.value = config.report_interval_sec || "";
@@ -950,41 +913,22 @@
         sleepModeSelect.value = String(Boolean(config.sleep_mode));
         wakeIntervalInput.value = config.wake_interval_sec || "";
         firmwareVersionInput.value = ota.version || "";
-        detailsMeta.textContent = `Status: ${device.status || "-"} | Connected: ${device.connected ? "yes" : "no"} | Last seen: ${device.last_seen_utc || "-"}`;
-        detailsJson.textContent = JSON.stringify({
-          plant_context: plantContext,
-          ...device,
-          telemetry,
-          device_config: config,
-          ota_status: ota,
-          irrigation_history: history,
-          watering_schedule: schedule,
-        }, null, 2);
-
-        if (typeof telemetry.ram_free_bytes === "number" || typeof telemetry.cpu_load_pct === "number") {
-          log(`Loaded current data for ${deviceId}.`);
-        }
+        detailsMeta.textContent = `Status: ${device.status || "-"} | Zuletzt: ${device.last_seen_utc || "-"}`;
+        detailsJson.textContent = JSON.stringify(device, null, 2);
       } catch (error) {
-        detailsMeta.textContent = `Error: ${String(error)}`;
+        detailsMeta.textContent = `Fehler: ${String(error)}`;
         detailsJson.textContent = String(error);
       }
     }
 
     async function uploadFirmware() {
-      if (!activeDeviceId) {
-        return;
-      }
-
+      if (!activeDeviceId) return;
       const file = firmwareFileInput.files?.[0];
-      if (!file) {
-        log("Select a firmware file first.");
-        return;
-      }
+      if (!file) { log("Bitte Firmware-Datei wählen."); return; }
 
       const reader = new FileReader();
       reader.onload = async () => {
-        const bytes = reader.result;
-        const contentBase64 = bytes ? btoa(String.fromCharCode(...new Uint8Array(bytes))) : "";
+        const contentBase64 = reader.result ? btoa(String.fromCharCode(...new Uint8Array(reader.result))) : "";
         try {
           const response = await fetch(`/devices/${activeDeviceId}/firmware`, {
             method: "POST",
@@ -993,336 +937,219 @@
               filename: file.name,
               content_base64: contentBase64,
               firmware_version: firmwareVersionInput.value.trim() || file.name,
-            })
+            }),
           });
           const data = await parseApiResponse(response);
-          if (!response.ok) {
-            throw new Error(data.message || "Firmware upload failed");
-          }
-          log(`Firmware upload queued for ${activeDeviceId}.`);
+          if (!response.ok) throw new Error(data.message || "Upload fehlgeschlagen");
+          log(`Firmware für ${activeDeviceId} hochgeladen.`);
           await openDetails(activeDeviceId);
         } catch (error) {
-          log(`Firmware upload failed: ${String(error)}`);
+          log(`Upload fehlgeschlagen: ${String(error)}`);
         }
       };
       reader.readAsArrayBuffer(file);
     }
 
     async function rollbackFirmware() {
-      if (!activeDeviceId) {
-        return;
-      }
-
+      if (!activeDeviceId) return;
       try {
         const response = await fetch(`/devices/${activeDeviceId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ota_action: "rollback", firmware_version: firmwareVersionInput.value.trim() || "rollback" })
+          body: JSON.stringify({ ota_action: "rollback", firmware_version: firmwareVersionInput.value.trim() || "rollback" }),
         });
         const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Rollback failed");
-        }
-        log(`Rollback requested for ${activeDeviceId}.`);
+        if (!response.ok) throw new Error(data.message || "Rollback fehlgeschlagen");
+        log(`Rollback für ${activeDeviceId} angefordert.`);
         await openDetails(activeDeviceId);
       } catch (error) {
-        log(`Rollback failed: ${String(error)}`);
+        log(`Rollback fehlgeschlagen: ${String(error)}`);
       }
     }
 
     async function saveConfig() {
-      if (!activeDeviceId) {
-        return;
-      }
-
+      if (!activeDeviceId) return;
       try {
-        const payload = {
-          device_config: {
-            wifi_ssid: wifiSsidInput.value.trim(),
-            wifi_password: wifiPasswordInput.value,
-            report_interval_sec: Number(reportIntervalInput.value || 60),
-            watering_duration_sec: Number(wateringDurationInput.value || 60),
-            sleep_mode: sleepModeSelect.value === "true",
-            wake_interval_sec: Number(wakeIntervalInput.value || 600),
-          },
-          firmware_version: firmwareVersionInput.value.trim(),
-          ota_message: `Updated from dashboard at ${new Date().toISOString()}`,
-        };
-
         const response = await fetch(`/devices/${activeDeviceId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            device_config: {
+              wifi_ssid: wifiSsidInput.value.trim(),
+              wifi_password: wifiPasswordInput.value,
+              report_interval_sec: Number(reportIntervalInput.value || 60),
+              watering_duration_sec: Number(wateringDurationInput.value || 60),
+              sleep_mode: sleepModeSelect.value === "true",
+              wake_interval_sec: Number(wakeIntervalInput.value || 600),
+            },
+          }),
         });
         const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Save failed");
-        }
-        log(`Configuration saved for ${activeDeviceId}.`);
+        if (!response.ok) throw new Error(data.message || "Speichern fehlgeschlagen");
+        log(`Konfiguration für ${activeDeviceId} gespeichert.`);
         await openDetails(activeDeviceId);
       } catch (error) {
-        log(`Save failed: ${String(error)}`);
+        log(`Speichern fehlgeschlagen: ${String(error)}`);
       }
     }
 
     async function sendAction(deviceId, action, extraBody = {}) {
       if (action === "delete_device") {
-        const confirmed = window.confirm(`Delete device '${deviceId}' permanently?`);
-        if (!confirmed) {
-          return;
-        }
-
+        if (!window.confirm(`Gerät '${deviceId}' wirklich löschen?`)) return;
         try {
-          const response = await fetch(`/devices/${deviceId}`, {
-            method: "DELETE"
-          });
+          const response = await fetch(`/devices/${deviceId}`, { method: "DELETE" });
           const data = await parseApiResponse(response);
-          if (!response.ok) {
-            throw new Error(data.message || "Delete failed");
-          }
-          log(`Device '${deviceId}' deleted.`);
+          if (!response.ok) throw new Error(data.message || "Löschen fehlgeschlagen");
+          log(`Gerät ${deviceId} gelöscht.`);
           await loadDevices();
         } catch (error) {
-          log(`Delete failed: ${String(error)}`);
+          log(`Löschen fehlgeschlagen: ${String(error)}`);
         }
         return;
       }
 
       let body;
-      if (action === "restart") {
-        body = { action: "restart" };
-      } else if (action === "identify") {
-        body = { action: "identify", duration_sec: 15 };
-      } else if (action === "relay_toggle") {
-        body = { action };
-      } else {
-        return;
-      }
+      if (action === "restart") body = { action: "restart" };
+      else if (action === "identify") body = { action: "identify", duration_sec: 15 };
+      else if (action === "relay_toggle") body = { action };
+      else if (action === "water_now") {
+        const form = document.querySelector(`[data-schedule-form="${deviceId}"]`);
+        const duration = Number(form?.querySelector('[data-field="duration_sec"]')?.value || 21);
+        body = { action: "water_now", duration_sec: duration };
+      } else return;
 
       try {
         const response = await fetch(`/devices/${deviceId}/action`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
+          body: JSON.stringify({ ...body, ...extraBody }),
         });
         const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Action failed");
-        }
-        log(`Action '${body.action}' for ${deviceId} succeeded.`);
+        if (!response.ok) throw new Error(data.message || "Aktion fehlgeschlagen");
+        log(`Aktion '${body.action}' für ${deviceId} ausgeführt.`);
         await loadDevices();
       } catch (error) {
-        log(`Action failed: ${String(error)}`);
+        log(`Aktion fehlgeschlagen: ${String(error)}`);
       }
     }
 
     function setTerminalConnection(connected) {
-      terminalDot.classList.remove("online", "offline");
-      if (connected) {
-        terminalDot.classList.add("online");
-        terminalStatusText.textContent = "ESP is connected";
-      } else {
-        terminalDot.classList.add("offline");
-        terminalStatusText.textContent = "ESP is offline / sleeping";
-      }
+      terminalDot.className = `terminal-dot ${connected ? "online" : "offline"}`;
+      terminalStatusText.textContent = connected ? "ESP verbunden" : "ESP offline";
     }
 
     async function refreshTerminalState() {
-      if (!activeTerminalDeviceId) {
-        return;
-      }
-
+      if (!activeTerminalDeviceId) return;
       try {
-        const response = await fetch(`/devices/${activeTerminalDeviceId}/terminal`, { method: "GET" });
+        const response = await fetch(`/devices/${activeTerminalDeviceId}/terminal`);
         const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to read terminal state");
-        }
-
+        if (!response.ok) throw new Error(data.message || "Terminal-Fehler");
         const term = data.terminal || {};
         setTerminalConnection(Boolean(term.connected));
-        terminalMeta.textContent = `Session: ${term.session_active ? "active" : "inactive"} | Pending commands: ${term.pending_commands || 0} | Keep awake until: ${term.keep_awake_until_utc || "-"}`;
-
+        terminalMeta.textContent = `Sitzung: ${term.session_active ? "aktiv" : "inaktiv"} | Befehle: ${term.pending_commands || 0}`;
         const lines = Array.isArray(term.output) ? term.output : [];
-        terminalOutput.textContent = lines.length > 0 ? lines.join("\n") : "No terminal output yet. Device will append output when online.";
+        terminalOutput.textContent = lines.length ? lines.join("\n") : "Noch keine Ausgabe.";
         terminalOutput.scrollTop = terminalOutput.scrollHeight;
       } catch (error) {
         setTerminalConnection(false);
-        terminalMeta.textContent = `Error: ${String(error)}`;
+        terminalMeta.textContent = `Fehler: ${String(error)}`;
       }
     }
 
     async function openTerminal(deviceId) {
       activeTerminalDeviceId = deviceId;
       terminalTitle.textContent = "ESP Terminal";
-      terminalOutput.textContent = "Opening terminal session...";
+      terminalOutput.textContent = "Öffne Terminal…";
       terminalModal.classList.add("open");
-
       try {
-        const response = await fetch(`/devices/${deviceId}/terminal/open`, {
+        await fetch(`/devices/${deviceId}/terminal/open`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ keep_awake_seconds: 900 })
+          body: JSON.stringify({ keep_awake_seconds: 900 }),
         });
-        const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to open terminal session");
-        }
       } catch (error) {
-        log(`Failed to request terminal session: ${String(error)}`);
+        log(`Terminal konnte nicht geöffnet werden: ${String(error)}`);
       }
-
       await refreshTerminalState();
-      if (terminalPollId) {
-        clearInterval(terminalPollId);
-      }
+      if (terminalPollId) clearInterval(terminalPollId);
       terminalPollId = setInterval(refreshTerminalState, 5000);
     }
 
     function closeTerminal() {
       terminalModal.classList.remove("open");
       activeTerminalDeviceId = "";
-      if (terminalPollId) {
-        clearInterval(terminalPollId);
-        terminalPollId = null;
-      }
+      if (terminalPollId) { clearInterval(terminalPollId); terminalPollId = null; }
     }
 
     async function sendTerminalCommand() {
-      if (!activeTerminalDeviceId) {
-        return;
-      }
-
+      if (!activeTerminalDeviceId) return;
       const command = terminalInput.value.trim();
-      if (!command) {
-        return;
-      }
-
+      if (!command) return;
       try {
         const response = await fetch(`/devices/${activeTerminalDeviceId}/terminal/command`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command })
+          body: JSON.stringify({ command }),
         });
         const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Command queue failed");
-        }
+        if (!response.ok) throw new Error(data.message || "Befehl fehlgeschlagen");
         terminalInput.value = "";
-        log(`Command queued for ${activeTerminalDeviceId}: ${command}`);
         await refreshTerminalState();
       } catch (error) {
-        log(`Terminal command failed: ${String(error)}`);
+        log(`Terminal-Befehl fehlgeschlagen: ${String(error)}`);
       }
     }
 
     async function requestWake() {
-      if (!activeTerminalDeviceId) {
-        return;
-      }
-
+      if (!activeTerminalDeviceId) return;
       try {
         const response = await fetch(`/devices/${activeTerminalDeviceId}/power/wake`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ keep_awake_seconds: 900 })
+          body: JSON.stringify({ keep_awake_seconds: 900 }),
         });
-        const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Wake request failed");
-        }
-        log(`Wake requested for ${activeTerminalDeviceId}`);
+        await parseApiResponse(response);
         await refreshTerminalState();
       } catch (error) {
-        log(`Wake request failed: ${String(error)}`);
+        log(`Wake fehlgeschlagen: ${String(error)}`);
       }
     }
 
     async function requestSleep() {
-      if (!activeTerminalDeviceId) {
-        return;
-      }
-
+      if (!activeTerminalDeviceId) return;
       try {
-        const response = await fetch(`/devices/${activeTerminalDeviceId}/power/sleep`, {
-          method: "POST"
-        });
-        const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Sleep request failed");
-        }
-        log(`Deep sleep requested for ${activeTerminalDeviceId}`);
+        const response = await fetch(`/devices/${activeTerminalDeviceId}/power/sleep`, { method: "POST" });
+        await parseApiResponse(response);
         await refreshTerminalState();
       } catch (error) {
-        log(`Sleep request failed: ${String(error)}`);
+        log(`Sleep fehlgeschlagen: ${String(error)}`);
       }
     }
 
-    tableBody.addEventListener("click", async (event) => {
-      const terminalBtn = event.target.closest("button[data-terminal-open]");
+    deviceGrid.addEventListener("click", async (event) => {
+      const saveBtn = event.target.closest("[data-save-schedule]");
+      if (saveBtn) {
+        await saveSchedule(saveBtn.getAttribute("data-save-schedule"));
+        return;
+      }
+
+      const terminalBtn = event.target.closest("[data-terminal-open]");
       if (terminalBtn) {
-        const deviceId = terminalBtn.getAttribute("data-device");
-        if (deviceId) {
-          await openTerminal(deviceId);
-        }
+        await openTerminal(terminalBtn.getAttribute("data-device"));
         return;
       }
 
-      const detailsBtn = event.target.closest("button[data-device-details]");
+      const detailsBtn = event.target.closest("[data-device-details]");
       if (detailsBtn) {
-        const deviceId = detailsBtn.getAttribute("data-device");
-        if (deviceId) {
-          await openDetails(deviceId);
-        }
+        await openDetails(detailsBtn.getAttribute("data-device"));
         return;
       }
 
-      const btn = event.target.closest("button[data-action]");
-      if (!btn) {
-        return;
-      }
-
+      const btn = event.target.closest("[data-action]");
+      if (!btn) return;
       const deviceId = btn.getAttribute("data-device");
-      const action = btn.getAttribute("data-action") || "";
-      if (!deviceId || !action) {
-        return;
-      }
-      await sendAction(deviceId, action);
-    });
-
-    tableBody.addEventListener("dblclick", async (event) => {
-      const nameElement = event.target.closest("strong.device-name");
-      if (!nameElement) {
-        return;
-      }
-
-      const deviceId = nameElement.getAttribute("data-device");
-      const currentName = nameElement.textContent || "";
-      const newName = window.prompt("Enter new device name:", currentName);
-      if (newName === null) {
-        return;
-      }
-
-      const trimmed = newName.trim();
-      if (!trimmed || !deviceId) {
-        return;
-      }
-
-      try {
-        const response = await fetch(`/devices/${deviceId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: trimmed })
-        });
-        const data = await parseApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Rename failed");
-        }
-        log(`Device renamed to '${trimmed}'.`);
-        await loadDevices();
-      } catch (error) {
-        log(`Rename failed: ${String(error)}`);
-      }
+      const action = btn.getAttribute("data-action");
+      if (deviceId && action) await sendAction(deviceId, action);
     });
 
     reloadBtn.addEventListener("click", loadDevices);
@@ -1333,25 +1160,11 @@
     uploadFirmwareBtn.addEventListener("click", uploadFirmware);
     rollbackFirmwareBtn.addEventListener("click", rollbackFirmware);
     terminalSendBtn.addEventListener("click", sendTerminalCommand);
-    terminalInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        sendTerminalCommand();
-      }
-    });
+    terminalInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendTerminalCommand(); } });
     wakeBtn.addEventListener("click", requestWake);
     sleepBtn.addEventListener("click", requestSleep);
-    terminalModal.addEventListener("click", (event) => {
-      if (event.target === terminalModal) {
-        closeTerminal();
-      }
-    });
-
-    detailsModal.addEventListener("click", (event) => {
-      if (event.target === detailsModal) {
-        detailsModal.classList.remove("open");
-      }
-    });
+    terminalModal.addEventListener("click", (e) => { if (e.target === terminalModal) closeTerminal(); });
+    detailsModal.addEventListener("click", (e) => { if (e.target === detailsModal) detailsModal.classList.remove("open"); });
 
     const modal = document.getElementById("onboardModal");
     const onboardBtn = document.getElementById("onboardBtn");
@@ -1360,52 +1173,29 @@
     const deviceIdInput = document.getElementById("deviceId");
     const deviceNameInput = document.getElementById("deviceName");
 
-    onboardBtn.addEventListener("click", () => {
-      modal.classList.add("open");
-      deviceIdInput.focus();
-    });
-
-    cancelBtn.addEventListener("click", () => {
-      modal.classList.remove("open");
-      onboardForm.reset();
-    });
-
-    modal.addEventListener("click", (event) => {
-      if (event.target === modal) {
-        modal.classList.remove("open");
-        onboardForm.reset();
-      }
-    });
+    onboardBtn.addEventListener("click", () => { modal.classList.add("open"); deviceIdInput.focus(); });
+    cancelBtn.addEventListener("click", () => { modal.classList.remove("open"); onboardForm.reset(); });
+    modal.addEventListener("click", (e) => { if (e.target === modal) { modal.classList.remove("open"); onboardForm.reset(); } });
 
     onboardForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-
-      const deviceId = deviceIdInput.value.trim();
-      const deviceName = deviceNameInput.value.trim();
-
-      if (!deviceId || !deviceName) {
-        log("Error: ID and name are required.");
-        return;
-      }
-
+      const serial = deviceIdInput.value.trim();
+      const name = deviceNameInput.value.trim();
+      if (!serial || !name) { log("Seriennummer und Name sind Pflicht."); return; }
       try {
         const response = await fetch("/devices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ serial_number: deviceId, name: deviceName })
+          body: JSON.stringify({ serial_number: serial, name }),
         });
         const data = await parseApiResponse(response);
-
-        if (!response.ok) {
-          throw new Error(data.message || "Onboarding failed");
-        }
-
-        log(`New device '${deviceId}' created successfully.`);
+        if (!response.ok) throw new Error(data.message || "Anlegen fehlgeschlagen");
+        log(`Gerät ${serial} angelegt.`);
         modal.classList.remove("open");
         onboardForm.reset();
         await loadDevices();
       } catch (error) {
-        log(`Onboarding error: ${String(error)}`);
+        log(`Fehler beim Anlegen: ${String(error)}`);
       }
     });
 
