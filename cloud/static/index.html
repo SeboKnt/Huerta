@@ -1708,6 +1708,21 @@
         </div>
       </div>
 
+      <!-- AI Chat Section -->
+      <div class="system-logs-section" style="margin-bottom:16px; padding:16px;">
+        <h3 style="margin:0 0 10px 0; font-size:14px; display:flex; align-items:center; gap:8px;">
+          <span>🤖 Huerta Pflanzen-KI</span>
+          <span style="font-size:9px; background:var(--accent-soft); color:var(--accent); padding:2px 6px; border-radius:4px; font-weight:800;">BETA</span>
+        </h3>
+        <div id="aiChatBox" style="height:160px; overflow-y:auto; background:#0b0f19; border-radius:10px; padding:12px; font-size:12px; line-height:1.4; border:1px solid rgba(255,255,255,0.05); margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
+          <!-- Chat history will load here -->
+        </div>
+        <div style="display:flex; gap:8px;">
+          <input id="aiChatInput" type="text" placeholder="Frage die KI etwas über diese Pflanze..." onkeydown="if(event.key === 'Enter') sendAiChatMessage()" style="flex:1; padding:8px 12px; font-size:13px; border-radius:8px; border:1px solid var(--panel-border); background:var(--panel); color:var(--text-main);" />
+          <button type="button" class="btn-primary" style="padding:8px 14px; font-size:12px;" onclick="sendAiChatMessage()">Senden</button>
+        </div>
+      </div>
+
       <!-- Raw JSON (Collapsible) -->
       <details style="margin-bottom:16px; border:1px solid var(--panel-border); border-radius:10px; padding:10px; background-color: var(--chip);">
         <summary style="font-size:13px; font-weight:700; cursor:pointer; color:var(--text-muted); user-select:none;">Rohdaten (JSON) einblenden</summary>
@@ -1852,6 +1867,9 @@
     let isEditLayoutMode = false;
     let selectedElementId = null;
     let dragLayoutElement = null;
+    
+    // AI Chat Histories
+    let chatHistories = {};
 
     // Search state
     let searchQuery = "";
@@ -2072,13 +2090,12 @@
             <div class="search-bar-wrapper">
               <input id="deviceSearch" class="search-input" type="search" placeholder="Geräte suchen..." value="${searchQuery}" oninput="onSearchInput(event)" />
             </div>
-            <button type="button" class="btn-primary" onclick="openOnboardModal()">ESP registrieren</button>
           </div>
         </div>
       `;
       
       if (devices.length === 0) {
-        html += `<div class="empty-state">Keine Geräte gefunden.</div>`;
+        html += `<div class="empty-state">Keine Geräte gefunden. Neue Geräte werden beim ersten Starten automatisch registriert.</div>`;
         container.innerHTML = html;
         return;
       }
@@ -2100,12 +2117,12 @@
         else if (soil > 75) moistureClass = "moisture-wet";
         
         html += `
-          <div class="device-list-row" data-device-row-id="${device.id}">
+          <div class="device-list-row" data-device-row-id="${device.id}" onclick="openDeviceDetails('${device.id}')" style="cursor:pointer;">
             <div class="row-main-info">
               <div class="plant-avatar">🌱</div>
               <div class="plant-meta">
                 <span class="plant-name">${plant.plant_name || device.name || "Unbenannte Pflanze"}</span>
-                <span class="plant-sub">${plant.room || "Unbekannter Raum"} · SN: <code>${device.id}</code></span>
+                <span class="plant-sub">${plant.room || "Unbekannter Raum"}</span>
               </div>
             </div>
             
@@ -2128,7 +2145,7 @@
               </div>
             </div>
             
-            <div class="row-actions">
+            <div class="row-actions" onclick="event.stopPropagation()">
               <button class="action-btn relay-toggle-btn ${device.relay_debug_state === "on" ? "active" : ""}" 
                       type="button" data-action="relay_toggle" data-device="${device.id}">
                 Relais ${device.relay_debug_state === "on" ? "AN" : "AUS"}
@@ -2473,7 +2490,6 @@
             <h2>System & Diagnose</h2>
             <p class="subtitle">Überwache den Server-Status, füge neue Steuergeräte hinzu und debugge Verbindungen.</p>
           </div>
-          <button type="button" class="btn-primary" onclick="openOnboardModal()">ESP registrieren</button>
         </div>
         
         <div class="system-grid">
@@ -2671,10 +2687,7 @@
       const labels = {
         wall: "Wand",
         window: "Fenster",
-        door: "Tür",
-        table: "Tisch",
-        sofa: "Sofa",
-        stand: "Hocker"
+        door: "Tür"
       };
       return labels[type] || "Element";
     }
@@ -3266,11 +3279,91 @@
         // Render Telemetry Chart
         renderTelemetryChart(device);
 
+        // Initialize and render AI Chat
+        const soilVal = plant.soil_moisture_pct ?? (device.telemetry?.soil_moisture_pct);
+        if (!chatHistories[deviceId]) {
+          chatHistories[deviceId] = [
+            { sender: "ai", text: `Hallo! Ich bin dein Huerta Pflanzen-Assistent. Ich überwache <b>${plant.plant_name || device.name || 'deine Pflanze'}</b> (${plant.plant_species || 'Spezies unbekannt'}). Der aktuelle Feuchtigkeitswert liegt bei <b>${soilVal != null ? soilVal.toFixed(0) + '%' : 'unbekannt'}</b>. Wie kann ich dir heute helfen?` }
+          ];
+        }
+        renderAiMessages(deviceId);
+
       } catch (error) {
         detailsMeta.textContent = `Fehler: ${String(error)}`;
         detailsJson.textContent = String(error);
         document.getElementById("chartContainer").style.display = "none";
       }
+    }
+
+    function renderAiMessages(deviceId) {
+      const aiChatBox = document.getElementById("aiChatBox");
+      if (!aiChatBox) return;
+      
+      const history = chatHistories[deviceId] || [];
+      aiChatBox.innerHTML = history.map(msg => `
+        <div style="align-self: ${msg.sender === 'user' ? 'flex-end' : 'flex-start'}; 
+                    background-color: ${msg.sender === 'user' ? 'var(--accent)' : 'var(--chip)'}; 
+                    color: ${msg.sender === 'user' ? '#fff' : 'var(--text-main)'}; 
+                    padding: 8px 12px; 
+                    border-radius: 10px; 
+                    max-width: 85%;
+                    word-break: break-word;
+                    font-size: 12px;
+                    box-shadow: var(--shadow);">
+          ${msg.text}
+        </div>
+      `).join('');
+      aiChatBox.scrollTop = aiChatBox.scrollHeight;
+    }
+
+    async function sendAiChatMessage() {
+      const input = document.getElementById("aiChatInput");
+      const query = input.value.trim();
+      if (!query || !activeDeviceId) return;
+      
+      chatHistories[activeDeviceId].push({ sender: "user", text: query });
+      input.value = "";
+      renderAiMessages(activeDeviceId);
+      
+      const aiChatBox = document.getElementById("aiChatBox");
+      const typingDiv = document.createElement("div");
+      typingDiv.style.alignSelf = "flex-start";
+      typingDiv.style.backgroundColor = "var(--chip)";
+      typingDiv.style.color = "var(--text-muted)";
+      typingDiv.style.padding = "8px 12px";
+      typingDiv.style.borderRadius = "10px";
+      typingDiv.style.fontStyle = "italic";
+      typingDiv.style.fontSize = "12px";
+      typingDiv.textContent = "KI schreibt...";
+      aiChatBox.appendChild(typingDiv);
+      aiChatBox.scrollTop = aiChatBox.scrollHeight;
+      
+      setTimeout(() => {
+        typingDiv.remove();
+        
+        const dev = cachedDevices.find(d => d.id === activeDeviceId) || {};
+        const plant = dev.plant_context || {};
+        const soil = plant.soil_moisture_pct ?? (dev.telemetry?.soil_moisture_pct);
+        const temp = plant.temperature_c ?? (dev.telemetry?.temperature_c);
+        
+        let responseText = `Interessante Frage! Bezüglich deines <b>${plant.plant_species || 'Gewächses'}</b> namens <b>${plant.plant_name || 'Hansi'}</b> empfehle ich, stets auf die Bodenfeuchtigkeit zu achten.`;
+        
+        const qLower = query.toLowerCase();
+        if (qLower.includes("gelb") || qLower.includes("blätter") || qLower.includes("krank")) {
+          responseText = `Gelbe Blätter bei einer <b>${plant.plant_species || 'Pflanze'}</b> sind meistens ein Zeichen für Staunässe (Überwässerung) oder Nährstoffmangel. Da die aktuelle Feuchtigkeit bei <b>${soil != null ? soil.toFixed(0) + '%' : 'unbekannt'}</b> liegt, solltest du prüfen, ob das Wasser gut abfließen kann oder die Erde faulig riecht.`;
+        } else if (qLower.includes("trocken") || qLower.includes("gießen") || qLower.includes("wasser")) {
+          responseText = `Die Pflanze hat aktuell eine Feuchtigkeit von <b>${soil != null ? soil.toFixed(0) + '%' : 'unbekannt'}</b>. Für optimales Wachstum empfehlen wir, die Bewässerung so einzustellen, dass sie nicht dauerhaft unter 35% abfällt. Deine aktuelle Gießdauer ist auf <b>${dev.device_config?.watering_duration_sec || 60} Sekunden</b> eingestellt.`;
+        } else if (qLower.includes("temperatur") || qLower.includes("kalt") || qLower.includes("heiß") || qLower.includes("sonne")) {
+          responseText = `Die gemessene Umgebungstemperatur beträgt <b>${temp != null ? temp.toFixed(1) + '°C' : 'unbekannt'}</b>. Achte darauf, dass die Pflanze keiner direkten Zugluft ausgesetzt ist und der Standort den Lichtansprüchen entspricht.`;
+        } else if (qLower.includes("danke") || qLower.includes("hi") || qLower.includes("hallo")) {
+          responseText = `Sehr gerne! Ich stehe dir jederzeit für Fragen zu deiner <b>${plant.plant_species || 'Pflanze'}</b> zur Verfügung.`;
+        } else {
+          responseText = `Ich habe deine Frage zu <b>${plant.plant_name || 'dieser Pflanze'}</b> analysiert. Basierend auf den Sensordaten (Bodenfeuchte: ${soil != null ? soil.toFixed(0) + '%' : 'unbekannt'}, Temperatur: ${temp != null ? temp.toFixed(1) + '°C' : 'unbekannt'}) empfehle ich eine gleichmäßige Bodenfeuchtigkeit. Gibt es spezielle Symptome wie Flecken oder hängende Blätter?`;
+        }
+        
+        chatHistories[activeDeviceId].push({ sender: "ai", text: responseText });
+        renderAiMessages(activeDeviceId);
+      }, 800);
     }
 
     function renderTelemetryChart(device) {

@@ -20,6 +20,38 @@ def _sync_keep_awake_window(item: dict) -> None:
         item["terminal_session_active"] = False
 
 
+def _get_or_create_device(container, device_id: str) -> dict:
+    try:
+        return container.read_item(item=device_id, partition_key=device_id)
+    except Exception:
+        new_item = {
+            "id": device_id,
+            "deviceId": device_id,
+            "device_auth_hash": device_id,
+            "name": f"Neues Gerät ({device_id[:8]})",
+            "status": "offline",
+            "firmware": "unknown",
+            "ip": "0.0.0.0",
+            "last_seen_utc": _utc_now_iso(),
+            "created_at_utc": _utc_now_iso(),
+            "relay_debug_requested": False,
+            "relay_debug_state": "",
+            "relay_debug_request_id": "",
+            "terminal_session_active": False,
+            "terminal_commands": [],
+            "terminal_output": [],
+            "telemetry_history": [],
+            "plant_profile": {
+                "plant_name": f"Neues Gerät ({device_id[:8]})",
+                "room": "Unbekannter Raum",
+                "plant_species": "",
+                "notes": "",
+            }
+        }
+        container.create_item(body=new_item)
+        return new_item
+
+
 @app.route(route="agent/poll", methods=["POST"])
 def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -40,7 +72,7 @@ def agent_poll(req: func.HttpRequest) -> func.HttpResponse:
 
     try:
         container = _get_container_client()
-        item = container.read_item(item=device_id, partition_key=device_id)
+        item = _get_or_create_device(container, device_id)
     except Exception as exc:
         return _json_response({"status": "error", "message": f"failed to poll commands: {exc}"}, status_code=500)
 
@@ -109,7 +141,7 @@ def agent_report(req: func.HttpRequest) -> func.HttpResponse:
 
     try:
         container = _get_container_client()
-        item = container.read_item(item=device_id, partition_key=device_id)
+        item = _get_or_create_device(container, device_id)
     except Exception as exc:
         return _json_response({"status": "error", "message": f"failed to update device report: {exc}"}, status_code=500)
 
