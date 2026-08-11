@@ -1,3 +1,7 @@
+import json
+import urllib.request
+import logging
+from datetime import datetime, timezone, timedelta
 from core.time_utils import _is_connected, _parse_utc, _utc_now_iso
 
 
@@ -163,7 +167,7 @@ def _merge_plant_profile(item: dict, profile_payload: dict) -> dict:
     for key in ("plant_name", "plant_species", "room", "notes"):
         if key in profile_payload and isinstance(profile_payload[key], str):
             updates[key] = profile_payload[key].strip()
-    for key in ("temperature_c", "humidity_pct", "soil_moisture_pct", "room_x", "room_y"):
+    for key in ("temperature_c", "humidity_pct", "soil_moisture_pct", "room_x", "room_y", "latitude", "longitude"):
         if key in profile_payload:
             value = profile_payload[key]
             if value is None or value == "":
@@ -173,6 +177,8 @@ def _merge_plant_profile(item: dict, profile_payload: dict) -> dict:
                     updates[key] = float(value)
                 except (TypeError, ValueError):
                     pass
+    if "smart_watering_enabled" in profile_payload:
+        updates["smart_watering_enabled"] = bool(profile_payload["smart_watering_enabled"])
 
     merged = {**profile, **updates}
     item["plant_profile"] = merged
@@ -211,13 +217,24 @@ def _get_watering_schedule(item: dict) -> dict:
         detail_summary = " ".join(detail_bits)
         summary = f"{summary}; {detail_summary}" if summary else detail_summary
 
+    enabled = bool(schedule.get("enabled", False))
+    smart_bypass_active = False
+    
+    # Check weather bypass
+    cached_w = item.get("cached_weather")
+    if isinstance(cached_w, dict) and cached_w.get("is_raining") and item.get("plant_profile", {}).get("smart_watering_enabled"):
+        enabled = False
+        smart_bypass_active = True
+        summary = "Smart Bypass (Regen vorhergesagt)"
+
     return {
-        "enabled": bool(schedule.get("enabled", False)),
+        "enabled": enabled,
         "interval_hours": interval_hours,
         "duration_sec": duration_sec,
         "day": day,
         "start_time": start_time,
         "summary": summary or "Disabled",
+        "smart_bypass_active": smart_bypass_active,
     }
 
 
@@ -236,6 +253,14 @@ def _get_plant_context(item: dict) -> dict:
             return live
         return profile.get(profile_key)
 
+    def _float_or_none(val):
+        if val is None or val == "":
+            return None
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
+
     return {
         "plant_name": profile.get("plant_name") or item.get("name", "Unnamed plant"),
         "plant_species": profile.get("plant_species", ""),
@@ -246,6 +271,9 @@ def _get_plant_context(item: dict) -> dict:
         "notes": profile.get("notes", ""),
         "room_x": profile.get("room_x"),
         "room_y": profile.get("room_y"),
+        "smart_watering_enabled": bool(profile.get("smart_watering_enabled", False)),
+        "latitude": _float_or_none(profile.get("latitude")),
+        "longitude": _float_or_none(profile.get("longitude")),
     }
 
 
@@ -298,9 +326,57 @@ def _get_stats(item: dict) -> dict:
     }
 
 
+def _update_weather_cache(item: dict) -> None:
+    profile = item.get("plant_profile", {})
+    if not isinstance(profile, dict):
+        return
+
+    if not profile.get("smart_watering_enabled"):
+        return
+
+    lat = profile.get("latitude")
+    lon = profile.get("longitude")
+    if lat is None or lon is None:
+        return
+
+    now = datetime.now(timezone.utc)
+    cache = item.get("cached_weather")
+    if isinstance(cache, dict):
+        expires_str = cache.get("expires_at_utc", "")
+        if expires_str:
+            expires_dt = _parse_utc(expires_str)
+            if expires_dt and expires_dt > now:
+                return  # Cache is still valid
+
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=precipitation_probability&forecast_days=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "HuertaApp/1.0"})
+        with urllib.request.urlopen(req, timeout=2) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        
+        hourly_probs = data.get("hourly", {}).get("precipitation_probability", [])
+        max_prob = max(hourly_probs[:12]) if hourly_probs else 0
+        is_raining = max_prob > 50
+
+        item["cached_weather"] = {
+            "is_raining": is_raining,
+            "max_precipitation_probability": max_prob,
+            "expires_at_utc": (now + timedelta(hours=1)).isoformat(),
+            "last_checked_utc": now.isoformat()
+        }
+    except Exception as exc:
+        logging.error("Failed to fetch weather: %s", exc)
+
+
 def _to_device_response(item: dict) -> dict:
     device_id = item.get("deviceId") or item.get("id") or ""
     relay_state = _get_relay_state(item)
+    
+    try:
+        _update_weather_cache(item)
+    except Exception:
+        pass
+
     return {
         "id": device_id,
         "name": item.get("name", device_id),
@@ -325,4 +401,5 @@ def _to_device_response(item: dict) -> dict:
         "ota_status": _get_ota_status(item),
         "watering_schedule": _get_watering_schedule(item),
         "plant_context": _get_plant_context(item),
+        "cached_weather": item.get("cached_weather"),
     }
