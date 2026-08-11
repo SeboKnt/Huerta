@@ -195,9 +195,9 @@
 
     .actions-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(110px, 1fr));
+      grid-template-columns: repeat(2, minmax(112px, 1fr));
       gap: 6px;
-      min-width: 230px;
+      min-width: 240px;
     }
 
     .actions-grid button {
@@ -205,51 +205,40 @@
       font-size: 0.84rem;
     }
 
-    .relay-switch {
+    .relay-control {
+      grid-column: 1 / -1;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
-      padding: 6px 8px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      font-weight: 600;
+      color: #0f172a;
       background: #f7f3e8;
-      cursor: pointer;
-      user-select: none;
-      min-height: 34px;
+      border-color: #ded8c9;
+      min-height: 40px;
     }
 
-    .relay-switch input {
-      display: none;
+    .relay-control.relay-on {
+      background: #e8f7f5;
+      border-color: #bde7e2;
+      color: #0e5f58;
     }
 
-    .relay-switch .track {
-      width: 42px;
-      height: 24px;
+    .relay-control.relay-off {
+      background: #fff3f2;
+      border-color: #ffd9d6;
+      color: #8a1c13;
+    }
+
+    .relay-control .relay-dot {
+      width: 9px;
+      height: 9px;
       border-radius: 999px;
-      background: #cbd5e1;
-      position: relative;
-      transition: background 0.2s ease;
-    }
-
-    .relay-switch .track::after {
-      content: "";
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      border-radius: 999px;
-      background: #fff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-      transition: transform 0.2s ease;
-    }
-
-    .relay-switch input:checked + .track {
-      background: var(--accent);
-    }
-
-    .relay-switch input:checked + .track::after {
-      transform: translateX(18px);
+      background: currentColor;
+      opacity: 0.82;
+      box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
     }
 
     .btn-soft {
@@ -911,14 +900,13 @@
             <td><span class="telemetry-small">${uptime}<br/>${formatTelemetry(d.telemetry)}<br/>Schedule: ${scheduleSummary}</span></td>
             <td>
               <div class="actions-grid">
+                <button class="relay-control ${d.relay_debug_state === "on" ? "relay-on" : "relay-off"}" type="button" data-action="relay_toggle" data-device="${d.id}">
+                  <span class="relay-dot" aria-hidden="true"></span>
+                  <span>Relay ${d.relay_debug_state === "on" ? "ON" : "OFF"}</span>
+                </button>
                 <button class="terminal-open-btn" type="button" data-terminal-open="true" data-device="${d.id}">Terminal</button>
                 <button class="details-open-btn btn-soft" type="button" data-device-details="true" data-device="${d.id}">Details</button>
                 <button class="btn-soft" type="button" data-action="identify" data-device="${d.id}">Identify</button>
-                <label class="relay-switch" data-device="${d.id}">
-                  <input type="checkbox" data-action="relay_toggle" data-device="${d.id}" ${d.relay_debug_state === "on" ? "checked" : ""} />
-                  <span class="track"></span>
-                  <span>Relay</span>
-                </label>
                 <button class="btn-soft" type="button" data-action="restart" data-device="${d.id}">Restart</button>
                 <button class="btn-danger" type="button" data-action="delete_device" data-device="${d.id}">Delete</button>
               </div>
@@ -1286,15 +1274,6 @@
         const deviceId = detailsBtn.getAttribute("data-device");
         if (deviceId) {
           await openDetails(deviceId);
-        }
-        return;
-      }
-
-      const toggle = event.target.closest("label.relay-switch");
-      if (toggle) {
-        const deviceId = toggle.getAttribute("data-device");
-        if (deviceId) {
-          await sendAction(deviceId, "relay_toggle");
         }
         return;
       }
