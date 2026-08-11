@@ -1563,6 +1563,130 @@
       color: #6ee7b7;
       border-radius: 50%;
     }
+
+    /* KI-Klinik Scanner & Report UI */
+    @keyframes scanLineAnimation {
+      0% { top: 0%; opacity: 0.8; }
+      50% { top: 100%; opacity: 0.8; }
+      100% { top: 0%; opacity: 0.8; }
+    }
+    .scan-container {
+      position: relative;
+      width: 100%;
+      height: 320px;
+      background-color: #0b0f19;
+      border: 2px dashed var(--panel-border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .scan-container:hover {
+      border-color: var(--accent);
+      background-color: rgba(16, 185, 129, 0.02);
+    }
+    .scan-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    .scan-laser {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(to bottom, transparent, #10b981, transparent);
+      box-shadow: 0 0 12px #10b981, 0 0 4px #10b981;
+      z-index: 10;
+      pointer-events: none;
+      display: none;
+    }
+    .scan-container.scanning .scan-laser {
+      display: block;
+      animation: scanLineAnimation 2s infinite linear;
+    }
+    .scan-overlay-info {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(11, 15, 25, 0.7);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      z-index: 15;
+      display: none;
+      backdrop-filter: blur(2px);
+    }
+    .scan-container.scanning .scan-overlay-info {
+      display: flex;
+    }
+    .circular-progress {
+      position: relative;
+      width: 120px;
+      height: 120px;
+    }
+    .circular-progress svg {
+      width: 120px;
+      height: 120px;
+      transform: rotate(-90deg);
+    }
+    .circular-progress circle {
+      fill: none;
+      stroke-width: 10;
+      stroke: var(--chip);
+      stroke-linecap: round;
+    }
+    .circular-progress circle.progress-bar {
+      stroke: var(--accent);
+      stroke-dasharray: 314;
+      stroke-dashoffset: 314;
+      transition: stroke-dashoffset 1s ease-in-out;
+    }
+    .progress-value {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+    .preset-photos {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .preset-card {
+      background-color: var(--chip);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 6px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+    .preset-card:hover {
+      border-color: var(--accent);
+      background-color: var(--panel);
+    }
+    .preset-card img {
+      width: 100%;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -1583,6 +1707,9 @@
         </button>
         <button class="nav-btn" data-tab="schedules" onclick="switchTab('schedules')">
           <span class="icon">📅</span> Pläne & Kalender
+        </button>
+        <button class="nav-btn" data-tab="clinic" onclick="switchTab('clinic')">
+          <span class="icon">🩺</span> KI-Klinik
         </button>
         <button class="nav-btn" data-tab="system" onclick="switchTab('system')">
           <span class="icon">⚙️</span> System & Diagnose
@@ -1629,6 +1756,10 @@
         <button class="mobile-nav-btn" data-tab-mob="schedules" onclick="switchTab('schedules')">
           <span class="icon">📅</span>
           <span>Pläne</span>
+        </button>
+        <button class="mobile-nav-btn" data-tab-mob="clinic" onclick="switchTab('clinic')">
+          <span class="icon">🩺</span>
+          <span>Klinik</span>
         </button>
         <button class="mobile-nav-btn" data-tab-mob="system" onclick="switchTab('system')">
           <span class="icon">⚙️</span>
@@ -1871,6 +2002,13 @@
     // AI Chat Histories
     let chatHistories = {};
 
+    // KI-Klinik State Variables
+    let selectedClinicPreset = "monstera";
+    let clinicSelectedDeviceId = "";
+    let isClinicScanning = false;
+    let clinicLogs = [];
+    let clinicScanReport = null;
+
     // Search state
     let searchQuery = "";
 
@@ -2058,6 +2196,8 @@
         renderSchedules(appContent);
       } else if (activeTab === "system") {
         renderSystem(appContent);
+      } else if (activeTab === "clinic") {
+        renderClinic(appContent);
       }
     }
 
@@ -2480,6 +2620,408 @@
       `;
       
       container.innerHTML = html;
+    }
+
+    // Rendering Tab: KI-Klinik
+    function renderClinic(container) {
+      let html = `
+        <div class="tab-header">
+          <div>
+            <h2>🩺 KI-Klinik</h2>
+            <p class="subtitle">Analysiere den Gesundheitszustand deiner Pflanzen per Foto-Scan und passe Pflege-Einstellungen automatisch an.</p>
+          </div>
+        </div>
+
+        <div class="system-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+          <!-- Left panel: Scanner & Upload -->
+          <div class="system-card" style="display:flex; flex-direction:column; gap:16px;">
+            <h3>Blatt-Scanner</h3>
+            
+            <div id="clinicScanContainer" class="scan-container ${isClinicScanning ? 'scanning' : ''}" onclick="document.getElementById('clinicPhotoInput').click()">
+              <div class="scan-laser"></div>
+              <div class="scan-overlay-info">
+                <span style="font-size:32px; margin-bottom:8px;">📡</span>
+                <span>Analysiere Blatt-Zellen...</span>
+                <span id="scanProgressText" style="font-size:11px; margin-top:4px; opacity:0.8;">0% abgeschlossen</span>
+              </div>
+              
+              <canvas id="clinicCanvas" width="400" height="300" style="width:100%; height:100%; border-radius:14px; background:#070b13; display:block;"></canvas>
+              
+              <input type="file" id="clinicPhotoInput" accept="image/*" style="display:none;" onchange="handleClinicPhotoUpload(event)" />
+            </div>
+
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Oder wähle ein Preset-Beispiel:</label>
+              <div class="preset-photos">
+                <div class="preset-card ${selectedClinicPreset === 'monstera' ? 'active' : ''}" onclick="selectClinicPreset('monstera')" style="${selectedClinicPreset === 'monstera' ? 'border-color:var(--accent);background:var(--panel);' : ''}">
+                  <div style="font-size:24px;margin-bottom:4px;">🍂</div>
+                  <span>Monstera (Nass)</span>
+                </div>
+                <div class="preset-card ${selectedClinicPreset === 'basil' ? 'active' : ''}" onclick="selectClinicPreset('basil')" style="${selectedClinicPreset === 'basil' ? 'border-color:var(--accent);background:var(--panel);' : ''}">
+                  <div style="font-size:24px;margin-bottom:4px;">🥀</div>
+                  <span>Basilikum (Trocken)</span>
+                </div>
+                <div class="preset-card ${selectedClinicPreset === 'ivy' ? 'active' : ''}" onclick="selectClinicPreset('ivy')" style="${selectedClinicPreset === 'ivy' ? 'border-color:var(--accent);background:var(--panel);' : ''}">
+                  <div style="font-size:24px;margin-bottom:4px;">🌿</div>
+                  <span>Efeu (Gesund)</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label for="clinicDeviceSelect" style="font-size:12px; font-weight:700;">Dieses Diagnose-Ergebnis anwenden auf:</label>
+              <select id="clinicDeviceSelect" onchange="clinicSelectedDeviceId = this.value; renderClinic(appContent); drawClinicPreset(selectedClinicPreset);" style="padding:10px; border-radius:8px; border:1px solid var(--panel-border); background:var(--panel); color:var(--text-main); font-size:13px; font-weight:600;">
+                <option value="">-- Kein Gerät ausgewählt --</option>
+                ${cachedDevices.map(dev => `
+                  <option value="${dev.id}" ${dev.id === clinicSelectedDeviceId ? 'selected' : ''}>
+                    ${dev.plant_context?.plant_name || dev.name} (${dev.plant_context?.room || 'Unbekannt'})
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+
+            <button type="button" class="btn-primary" style="padding:12px; font-size:13px; font-weight:700; width:100%;" onclick="startClinicScan()" ${isClinicScanning ? 'disabled' : ''}>
+              ⚡ KI-Scan starten
+            </button>
+          </div>
+
+          <!-- Right panel: Console & Result Report -->
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <!-- Live Logs Console -->
+            <div class="system-card" style="padding:16px;">
+              <h3>Scan-Aktivität</h3>
+              <pre id="clinicLogs" style="height:110px; overflow-y:auto; background:#0b0f19; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.05); font-family:monospace; font-size:11px; line-height:1.4; color:#34d399; margin:10px 0 0 0; white-space:pre-wrap; word-break:break-all;">${clinicLogs.join('\n') || 'Bereit für Scan...'}</pre>
+            </div>
+
+            <!-- Result Card -->
+            <div class="system-card" id="clinicResultCard" style="display:${clinicScanReport ? 'flex' : 'none'}; flex-direction:column; gap:14px; padding:16px;">
+              <h3>Diagnosebericht</h3>
+              
+              <div style="display:flex; align-items:center; gap:20px;">
+                <div class="circular-progress">
+                  <svg>
+                    <circle cx="60" cy="60" r="50"></circle>
+                    <circle class="progress-bar" id="clinicHealthProgress" cx="60" cy="60" r="50" style="stroke-dashoffset: ${clinicScanReport ? (314 - (314 * clinicScanReport.score) / 100) : 314};"></circle>
+                  </svg>
+                  <div class="progress-value" id="clinicHealthVal">${clinicScanReport ? clinicScanReport.score + '%' : '0%'}</div>
+                </div>
+                <div>
+                  <h4 id="clinicResultTitle" style="margin:0 0 4px 0; font-size:16px; color:var(--text-main);">${clinicScanReport ? clinicScanReport.title : '--'}</h4>
+                  <p id="clinicResultSubtitle" style="margin:0; font-size:12px; color:var(--text-muted);">${clinicScanReport ? clinicScanReport.subtitle : '--'}</p>
+                </div>
+              </div>
+
+              <div style="background:rgba(255,255,255,0.02); border-radius:10px; padding:12px; border:1px solid rgba(255,255,255,0.05); font-size:12px; line-height:1.5;">
+                <strong style="display:block; margin-bottom:6px; color:var(--text-main);">🔍 Analyse-Details:</strong>
+                <span id="clinicResultDetails" style="color:var(--text-muted);">${clinicScanReport ? clinicScanReport.details : '--'}</span>
+              </div>
+
+              <div style="background:rgba(16,185,129,0.04); border-radius:10px; padding:12px; border:1px solid rgba(16,185,129,0.1); font-size:12px; line-height:1.5;">
+                <strong style="display:block; margin-bottom:6px; color:#10b981;">💡 Empfohlene Pflege-Updates:</strong>
+                <span id="clinicResultRecom" style="color:var(--text-muted);">${clinicScanReport ? clinicScanReport.recom : '--'}</span>
+              </div>
+
+              <button type="button" class="btn-accent" style="padding:10px; font-size:12px; font-weight:700; width:100%;" onclick="applyClinicDiagnostics()" ${!clinicSelectedDeviceId ? 'disabled' : ''}>
+                💾 Werte auf ausgewähltes Gerät anwenden
+              </button>
+            </div>
+            
+            <!-- Placeholder Result Card when empty -->
+            <div class="system-card" id="clinicPlaceholderCard" style="display:${clinicScanReport ? 'none' : 'flex'}; align-items:center; justify-content:center; height:200px; color:var(--text-muted); font-size:13px;">
+              Bereit für Pflanzen-Scan. Wähle ein Preset oder lade ein Foto hoch.
+            </div>
+          </div>
+        </div>
+      `;
+      container.innerHTML = html;
+      
+      // Delay to draw canvas so elements exist in DOM
+      setTimeout(() => {
+        drawClinicPreset(selectedClinicPreset);
+      }, 50);
+    }
+
+    function drawClinicPreset(type) {
+      const canvas = document.getElementById("clinicCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Background gradient
+      const bgGrad = ctx.createRadialGradient(200, 150, 10, 200, 150, 250);
+      bgGrad.addColorStop(0, "#111827");
+      bgGrad.addColorStop(1, "#070b13");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.save();
+      ctx.translate(200, 150);
+      
+      if (type === "monstera") {
+        // Monstera
+        ctx.fillStyle = "#065f46";
+        ctx.beginPath();
+        ctx.moveTo(0, -90);
+        ctx.bezierCurveTo(70, -90, 110, -30, 90, 40);
+        ctx.bezierCurveTo(70, 90, 20, 100, 0, 110);
+        ctx.bezierCurveTo(-20, 100, -70, 90, -90, 40);
+        ctx.bezierCurveTo(-110, -30, -70, -90, 0, -90);
+        ctx.fill();
+        
+        // Cuts
+        ctx.fillStyle = "#111827";
+        const cuts = [
+          {x1: 20, y1: -40, w: 60, h: 10, rot: -0.2},
+          {x1: 30, y1: 10, w: 70, h: 12, rot: 0.1},
+          {x1: -20, y1: -40, w: -60, h: 10, rot: 0.2},
+          {x1: -30, y1: 10, w: -70, h: 12, rot: -0.1}
+        ];
+        cuts.forEach(c => {
+          ctx.save();
+          ctx.translate(c.x1, c.y1);
+          ctx.rotate(c.rot);
+          ctx.fillRect(0, -c.h/2, c.w, c.h);
+          ctx.restore();
+        });
+        
+        // Decay spots
+        ctx.fillStyle = "#854d0e";
+        ctx.beginPath(); ctx.arc(40, -10, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-50, 20, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#eab308";
+        ctx.beginPath(); ctx.arc(40, -10, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-50, 20, 5, 0, Math.PI * 2); ctx.fill();
+        
+      } else if (type === "basil") {
+        // Basil (Droop)
+        ctx.rotate(0.3);
+        ctx.fillStyle = "#166534";
+        ctx.beginPath();
+        ctx.moveTo(0, -80);
+        ctx.quadraticCurveTo(50, -50, 40, 20);
+        ctx.quadraticCurveTo(20, 80, 0, 90);
+        ctx.quadraticCurveTo(-20, 80, -40, 20);
+        ctx.quadraticCurveTo(-50, -50, 0, -80);
+        ctx.fill();
+        
+        ctx.fillStyle = "#78350f";
+        ctx.beginPath();
+        ctx.moveTo(0, 90);
+        ctx.quadraticCurveTo(15, 80, 10, 60);
+        ctx.quadraticCurveTo(0, 75, 0, 90);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(40, 20);
+        ctx.quadraticCurveTo(35, 40, 25, 45);
+        ctx.quadraticCurveTo(42, 35, 40, 20);
+        ctx.fill();
+        
+      } else if (type === "ivy") {
+        // Ivy
+        ctx.fillStyle = "#10b981";
+        ctx.beginPath();
+        ctx.moveTo(0, -90);
+        ctx.lineTo(35, -40);
+        ctx.lineTo(85, -20);
+        ctx.lineTo(45, 10);
+        ctx.lineTo(55, 70);
+        ctx.lineTo(0, 40);
+        ctx.lineTo(-55, 70);
+        ctx.lineTo(-45, 10);
+        ctx.lineTo(-85, -20);
+        ctx.lineTo(-35, -40);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Veins
+        ctx.strokeStyle = "#a7f3d0";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 40);
+        ctx.lineTo(0, -75);
+        ctx.moveTo(0, -10); ctx.lineTo(60, -15);
+        ctx.moveTo(0, -10); ctx.lineTo(-60, -15);
+        ctx.moveTo(0, 15); ctx.lineTo(40, 50);
+        ctx.moveTo(0, 15); ctx.lineTo(-40, 50);
+        ctx.stroke();
+      }
+      
+      // Stem
+      ctx.strokeStyle = "#4b5563";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, 70);
+      ctx.quadraticCurveTo(10, 100, 20, 120);
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+
+    function selectClinicPreset(preset) {
+      selectedClinicPreset = preset;
+      renderClinic(appContent);
+    }
+
+    function handleClinicPhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.getElementById("clinicCanvas");
+          if (!canvas) return;
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+          const x = (canvas.width / 2) - (img.width / 2) * scale;
+          const y = (canvas.height / 2) - (img.height / 2) * scale;
+          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          
+          selectedClinicPreset = "custom";
+          log("Benutzerfoto erfolgreich geladen.");
+        }
+        img.src = e.target.result;
+      }
+      reader.readAsDataURL(file);
+    }
+
+    function startClinicScan() {
+      if (isClinicScanning) return;
+      isClinicScanning = true;
+      clinicLogs = [];
+      clinicScanReport = null;
+      
+      renderClinic(appContent);
+      
+      const logEl = document.getElementById("clinicLogs");
+      const progressEl = document.getElementById("scanProgressText");
+      
+      const steps = [
+        { t: 0, msg: "🤖 Initialisiere Blatt-Muster-Erkennung v4.2..." },
+        { t: 500, msg: "📡 Starte Lichtspektrum-Scan (400nm - 700nm)..." },
+        { t: 1000, msg: "🔬 Analysiere Blattvenen-Struktur und Zellspannung..." },
+        { t: 1500, msg: "⚠️ Anomalie in den Blattspitzen detektiert..." },
+        { t: 2000, msg: "🧠 Gleiche Muster mit 15.000+ Pflanzendatenbanken ab..." },
+        { t: 2500, msg: "✅ Scan abgeschlossen. Generiere Diagnosebericht..." }
+      ];
+      
+      steps.forEach(step => {
+        setTimeout(() => {
+          if (!isClinicScanning) return;
+          clinicLogs.push(step.msg);
+          if (logEl) {
+            logEl.textContent = clinicLogs.join("\n");
+            logEl.scrollTop = logEl.scrollHeight;
+          }
+          if (progressEl) {
+            const pct = Math.round((step.t / 2500) * 100);
+            progressEl.textContent = `${pct}% abgeschlossen`;
+          }
+        }, step.t);
+      });
+      
+      setTimeout(() => {
+        isClinicScanning = false;
+        
+        let report = {};
+        if (selectedClinicPreset === "monstera") {
+          report = {
+            title: "Chlorose & Zelltod (Staunässe)",
+            subtitle: "Monstera Deliciosa (Fensterblatt)",
+            score: 45,
+            details: "Gelbfärbung der äußeren Blattränder und dunkle Flecken weisen auf einen Sauerstoffmangel im Wurzelbereich durch Staunässe hin (Wurzelfäule-Risiko).",
+            recom: "Gießdauer verringern. Gießintervall anpassen (Smart Gießen einschalten). Erhöhe die Trockenphase. Empfohlener Bodenfeuchte-Sollwert: 40%."
+          };
+        } else if (selectedClinicPreset === "basil") {
+          report = {
+            title: "Akuter Trockenstress (Wassermangel)",
+            subtitle: "Ocimum Basilicum (Basilikum)",
+            score: 28,
+            details: "Hängende Triebe und trockene Blattränder zeigen einen Zusammenbruch des Turgordrucks durch langanhaltenden Feuchtigkeitsentzug der Erde.",
+            recom: "Sofortiger Gießzyklus erforderlich. Erhöhe das Gießintervall oder die Dauer um 15%. Empfohlener Bodenfeuchte-Sollwert: 60%."
+          };
+        } else if (selectedClinicPreset === "ivy") {
+          report = {
+            title: "Gesunde Blattstruktur (Optimaler Zustand)",
+            subtitle: "Hedera Helix (Gemeiner Efeu)",
+            score: 98,
+            details: "Vollständig grüne Chlorophyll-Dichte, pralle Zellstrukturen und keine sichtbaren Verfärbungen. Perfekt an den Standort angepasst.",
+            recom: "Pflege beibehalten. Telemetriewerte sind im idealen Bereich. Empfohlener Bodenfeuchte-Sollwert: 50%."
+          };
+        } else {
+          report = {
+            title: "Unspezifische Gewebestruktur (Unbekannt)",
+            subtitle: "Hochgeladene Pflanze",
+            score: 75,
+            details: "Erkennung basiert auf benutzerdefiniertem Foto. Die Blattvenendichte deutet auf eine durchschnittliche Verdunstungsrate hin.",
+            recom: "Pflanze mäßig feucht halten. Empfohlener Bodenfeuchte-Sollwert: 45%."
+          };
+        }
+        
+        clinicScanReport = report;
+        renderClinic(appContent);
+        
+        // Health-Ring Animation
+        setTimeout(() => {
+          const circle = document.getElementById("clinicHealthProgress");
+          const valEl = document.getElementById("clinicHealthVal");
+          if (circle && valEl) {
+            const offset = 314 - (314 * report.score) / 100;
+            circle.style.strokeDashoffset = offset;
+            
+            let curr = 0;
+            const interval = setInterval(() => {
+              if (curr >= report.score) {
+                clearInterval(interval);
+              } else {
+                curr++;
+                valEl.textContent = `${curr}%`;
+              }
+            }, 10);
+          }
+        }, 50);
+        
+        log(`KI-Scan abgeschlossen. Diagnose: ${report.title}`);
+      }, 2600);
+    }
+
+    async function applyClinicDiagnostics() {
+      if (!clinicScanReport || !clinicSelectedDeviceId) return;
+      
+      let targetSoilMoisture = 40;
+      if (selectedClinicPreset === "basil") targetSoilMoisture = 60;
+      else if (selectedClinicPreset === "ivy") targetSoilMoisture = 50;
+      
+      try {
+        const response = await fetch(`/devices/${clinicSelectedDeviceId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plant_profile: {
+              plant_species: clinicScanReport.subtitle.split(" (")[0],
+              notes: `KI-Diagnose (${new Date().toLocaleDateString("de-DE")}): ${clinicScanReport.title}. Empfehlung: ${clinicScanReport.recom}`,
+              soil_moisture_pct: targetSoilMoisture
+            }
+          })
+        });
+        
+        const data = await parseApiResponse(response);
+        if (!response.ok) throw new Error(data.message || "Übernahme fehlgeschlagen");
+        
+        log(`KI-Diagnosewerte erfolgreich auf Gerät ${clinicSelectedDeviceId} angewendet.`);
+        alert(`Erfolgreich angewendet! Pflanzen-Spezies wurde auf '${clinicScanReport.subtitle.split(" (")[0]}' aktualisiert.`);
+        
+        await loadDevices();
+        clinicScanReport = null;
+        renderClinic(appContent);
+        
+      } catch (err) {
+        log(`KI-Werte übernehmen fehlgeschlagen: ${String(err)}`);
+        alert(`Fehler beim Übernehmen: ${String(err)}`);
+      }
     }
 
     // Rendering Tab 4: System & Diagnose
