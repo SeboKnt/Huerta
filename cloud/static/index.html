@@ -350,7 +350,7 @@
       border-radius: 16px;
       padding: 16px 24px;
       display: grid;
-      grid-template-columns: 2fr 1fr 2.5fr 2fr;
+      grid-template-columns: 2fr 0.8fr 2fr 1fr;
       align-items: center;
       gap: 24px;
       box-shadow: var(--shadow);
@@ -1922,6 +1922,30 @@
         </div>
       </div>
 
+      <!-- Troubleshooting & Controls section -->
+      <div class="system-logs-section" style="margin-bottom:16px; padding:16px;">
+        <h3 style="margin:0 0 12px 0; font-size:14px; display:flex; align-items:center; gap:6px;">
+          <span>⚡ Gerätesteuerung & Fehlerbehebung</span>
+        </h3>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn-dark" style="font-size:12px; padding:8px 14px;" data-action="relay_toggle" id="modalRelayToggleBtn">
+            Relais umschalten
+          </button>
+          <button type="button" class="btn-dark" style="font-size:12px; padding:8px 14px;" onclick="openDeviceTerminal(activeDeviceId)">
+            💻 ESP Terminal
+          </button>
+          <button type="button" class="btn-dark" style="font-size:12px; padding:8px 14px;" data-action="identify" id="modalIdentifyBtn">
+            💡 Identifizieren
+          </button>
+          <button type="button" class="btn-dark" style="font-size:12px; padding:8px 14px;" data-action="restart" id="modalRestartBtn">
+            🔄 Neustarten
+          </button>
+          <button type="button" class="btn-danger" style="font-size:12px; padding:8px 14px; margin-left:auto;" data-action="delete_device" id="modalDeleteBtn">
+            🗑️ Gerät löschen
+          </button>
+        </div>
+      </div>
+
       <!-- Raw JSON (Collapsible) -->
       <details style="margin-bottom:16px; border:1px solid var(--panel-border); border-radius:10px; padding:10px; background-color: var(--chip);">
         <summary style="font-size:13px; font-weight:700; cursor:pointer; color:var(--text-muted); user-select:none;">Rohdaten (JSON) einblenden</summary>
@@ -2462,42 +2486,20 @@
               ${statusChip(status)}
             </div>
             
-            <div class="row-telemetry">
+            <div class="row-telemetry" style="display:flex; align-items:center; gap:12px;">
               <div class="telemetry-pill ${moistureClass}">
                 <span class="pill-label">Boden</span>
                 <span class="pill-value">${soil != null ? soil.toFixed(0) + "%" : "–"}</span>
               </div>
-              <div class="telemetry-pill">
-                <span class="pill-label">Temp</span>
-                <span class="pill-value">${temp != null ? temp.toFixed(1) + "°C" : "–"}</span>
-              </div>
-              <div class="telemetry-pill">
-                <span class="pill-label">Luft</span>
-                <span class="pill-value">${humidity != null ? humidity.toFixed(0) + "%" : "–"}</span>
+              <div style="font-size: 11px; font-weight:700; color: var(--text-muted);">
+                ${temp != null ? temp.toFixed(1) + "°C" : "–"} / ${humidity != null ? humidity.toFixed(0) + "%" : "–"}
               </div>
             </div>
             
             <div class="row-actions" onclick="event.stopPropagation()">
-              <button class="action-btn relay-toggle-btn ${device.relay_debug_state === "on" ? "active" : ""}" 
-                      type="button" data-action="relay_toggle" data-device="${device.id}">
-                Relais ${device.relay_debug_state === "on" ? "AN" : "AUS"}
-              </button>
-              
-              <button class="action-btn btn-primary" type="button" data-action="water_now" data-device="${device.id}">
+              <button class="action-btn btn-primary" type="button" data-action="water_now" data-device="${device.id}" style="width:100%;">
                 Jetzt gießen
               </button>
-              
-              <div class="dropdown-actions">
-                <button class="action-btn btn-secondary" onclick="toggleDropdownMenu(event, '${device.id}')">•••</button>
-                <div id="dropdown-${device.id}" class="dropdown-menu-content">
-                  <a href="#" onclick="openDeviceDetails('${device.id}'); return false;">Gerädetetails</a>
-                  <a href="#" onclick="openDeviceTerminal('${device.id}'); return false;">ESP Terminal</a>
-                  <a href="#" data-action="identify" data-device="${device.id}">Identifizieren</a>
-                  <a href="#" data-action="restart" data-device="${device.id}">Neustart</a>
-                  <hr />
-                  <a href="#" class="danger-action" data-action="delete_device" data-device="${device.id}">Löschen</a>
-                </div>
-              </div>
             </div>
           </div>
         `;
@@ -3980,6 +3982,28 @@
         detailsMeta.textContent = `Status: ${device.status || "-"} | Zuletzt: ${device.last_seen_utc ? formatRelativeTime(device.last_seen_utc) : "-"}`;
         detailsJson.textContent = JSON.stringify(device, null, 2);
 
+        // Bind dynamic device attributes to troubleshooting buttons
+        document.getElementById("modalRelayToggleBtn").setAttribute("data-device", deviceId);
+        document.getElementById("modalIdentifyBtn").setAttribute("data-device", deviceId);
+        document.getElementById("modalRestartBtn").setAttribute("data-device", deviceId);
+        document.getElementById("modalDeleteBtn").setAttribute("data-device", deviceId);
+        
+        // Dynamic styling for relay state in modal
+        const relayBtn = document.getElementById("modalRelayToggleBtn");
+        if (device.relay_debug_state === "on") {
+          relayBtn.classList.add("active");
+          relayBtn.textContent = "Relais: AN (Ausschalten)";
+          relayBtn.style.background = "rgba(16, 185, 129, 0.15)";
+          relayBtn.style.color = "#34d399";
+          relayBtn.style.borderColor = "#10b981";
+        } else {
+          relayBtn.classList.remove("active");
+          relayBtn.textContent = "Relais: AUS (Einschalten)";
+          relayBtn.style.background = "";
+          relayBtn.style.color = "";
+          relayBtn.style.borderColor = "";
+        }
+
         // Water Usage Stats
         const flowRate = config.flow_rate_ml_sec || 15;
         const history = device.irrigation_history || [];
@@ -4398,6 +4422,23 @@
       if (deviceId && action) {
         event.stopPropagation();
         await sendAction(deviceId, action);
+      }
+    });
+
+    detailsModal.addEventListener("click", async (event) => {
+      const btn = event.target.closest("[data-action]");
+      if (!btn) return;
+      
+      const deviceId = btn.getAttribute("data-device") || activeDeviceId;
+      const action = btn.getAttribute("data-action");
+      if (deviceId && action) {
+        event.stopPropagation();
+        await sendAction(deviceId, action);
+        if (action === "delete_device") {
+          detailsModal.classList.remove("open");
+        } else if (action === "relay_toggle") {
+          setTimeout(() => openDetails(deviceId), 350);
+        }
       }
     });
 
