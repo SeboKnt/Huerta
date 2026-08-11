@@ -1,425 +1,1580 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Huerta Bewässerung</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #eef4ef;
-      --panel: #fffdf8;
-      --ink: #1f2a24;
-      --muted: #5f6b63;
-      --line: #d5ddd7;
-      --accent: #0d9488;
-      --accent-soft: #e6f6f3;
-      --danger: #b42318;
-      --ok: #1f7a3d;
-      --warn: #855b00;
-      --chip: #e8efe9;
+      /* Light Theme Variables */
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --panel-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #059669;
+      --accent-soft: #ecfdf5;
+      --accent-border: #a7f3d0;
+      --danger: #dc2626;
+      --danger-soft: #fef2f2;
+      --danger-border: #fca5a5;
+      --warning: #d97706;
+      --warning-soft: #fffbeb;
+      --warning-border: #fde047;
+      --chip: #f1f5f9;
+      --sidebar-bg: #1e293b;
+      --sidebar-text: #f8fafc;
+      --sidebar-text-muted: #94a3b8;
+      --sidebar-border: #334155;
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+    }
+
+    [data-theme="dark"] {
+      /* Dark Theme Variables */
+      --bg: #090d16;
+      --panel: #111827;
+      --panel-border: #1f2937;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --accent: #10b981;
+      --accent-soft: rgba(16, 185, 129, 0.08);
+      --accent-border: rgba(16, 185, 129, 0.2);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.08);
+      --danger-border: rgba(239, 68, 68, 0.2);
+      --warning: #fbbf24;
+      --warning-soft: rgba(251, 191, 36, 0.08);
+      --warning-border: rgba(251, 191, 36, 0.2);
+      --chip: #1f2937;
+      --sidebar-bg: #0f172a;
+      --sidebar-text: #f9fafb;
+      --sidebar-text-muted: #9ca3af;
+      --sidebar-border: #1e293b;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.45);
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
+      padding: 0;
       min-height: 100vh;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at 85% 0%, #cfe9dc 0%, transparent 32%),
-        radial-gradient(circle at 0% 100%, #f2e8d8 0%, transparent 28%),
-        var(--bg);
-      padding: 24px;
+      background-color: var(--bg);
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      color: var(--text-main);
+      transition: background-color 0.25s ease, color 0.25s ease;
     }
 
-    .wrap { max-width: 1200px; margin: 0 auto; }
-
-    .hero { margin-bottom: 20px; animation: rise 0.45s ease-out; }
-    h1 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.4rem); }
-    .subtitle { margin: 8px 0 0; color: var(--muted); }
-
-    .topbar {
+    .app-layout {
       display: flex;
-      gap: 10px;
-      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+      width: 280px;
+      background-color: var(--sidebar-bg);
+      color: var(--sidebar-text);
+      border-right: 1px solid var(--sidebar-border);
+      padding: 30px 24px;
+      display: flex;
+      flex-direction: column;
       justify-content: space-between;
-      margin-bottom: 18px;
-      flex-wrap: wrap;
+      box-shadow: var(--shadow);
+      z-index: 10;
+      flex-shrink: 0;
     }
 
-    .badge, .health-badge {
-      background: var(--chip);
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 0.85rem;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 36px;
     }
 
-    .health-badge { display: inline-flex; align-items: center; gap: 8px; }
-    .health-dot {
-      width: 10px; height: 10px; border-radius: 999px; background: #9ca3af;
-    }
-    .health-dot.up { background: #16a34a; box-shadow: 0 0 0 4px rgba(22,163,74,.15); }
-    .health-dot.down { background: #dc2626; box-shadow: 0 0 0 4px rgba(220,38,38,.15); }
-
-    .search-input {
-      min-width: 220px;
-      padding: 8px 12px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      font-family: inherit;
-      background: #fff;
+    .logo-icon {
+      font-size: 28px;
     }
 
-    button {
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 10px;
-      padding: 8px 12px;
+    .logo-text {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      background: linear-gradient(135deg, #34d399, #10b981);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-links {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-grow: 1;
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      border-radius: 12px;
+      border: none;
+      background: transparent;
+      color: var(--sidebar-text-muted);
+      font-size: 15px;
+      font-weight: 600;
+      text-align: left;
       cursor: pointer;
-      font-family: inherit;
-      transition: transform .12s ease, border-color .15s ease;
+      transition: all 0.2s ease;
     }
-    button:hover { transform: translateY(-1px); border-color: #9fb0a4; }
-    .btn-dark { background: #1d2b24; color: #fff; border-color: #1d2b24; }
-    .btn-accent { background: var(--accent-soft); border-color: #b8e4dd; color: #0e5f58; }
-    .btn-danger { background: #fff3f2; border-color: #ffd9d6; color: #8a1c13; }
-    .btn-soft { background: #f4f1e8; }
 
-    .device-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    .nav-btn:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: var(--sidebar-text);
+    }
+
+    .nav-btn.active {
+      background-color: var(--accent);
+      color: #fff;
+    }
+
+    .sidebar-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      border-top: 1px solid var(--sidebar-border);
+      padding-top: 24px;
+      font-size: 13px;
+    }
+
+    .badge {
+      background-color: var(--sidebar-border);
+      color: var(--sidebar-text);
+      border-radius: 99px;
+      padding: 6px 12px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .health-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 99px;
+      background-color: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--sidebar-border);
+    }
+
+    .health-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #64748b;
+      display: inline-block;
+    }
+
+    .health-dot.up {
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .health-dot.down {
+      background-color: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+    }
+
+    .theme-toggle-btn {
+      padding: 10px;
+      border: 1px solid var(--sidebar-border);
+      background: transparent;
+      color: var(--sidebar-text);
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      transition: background-color 0.2s;
+    }
+
+    .theme-toggle-btn:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+    }
+
+    .build-info {
+      color: var(--sidebar-text-muted);
+      font-size: 11px;
+      text-align: center;
+    }
+
+    /* Main Area */
+    .main-area {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      height: 100vh;
+    }
+
+    .app-content-panel {
+      padding: 40px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      box-sizing: border-box;
+      flex-grow: 1;
+    }
+
+    .tab-header {
+      margin-bottom: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
       gap: 16px;
     }
 
-    .device-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      box-shadow: 0 12px 32px rgba(31,42,36,.07);
-      overflow: hidden;
-      animation: rise .5s ease-out;
+    .tab-header h2 {
+      margin: 0 0 6px 0;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+    }
+
+    .tab-header .subtitle {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    /* Controls & Search */
+    .search-bar-wrapper {
+      min-width: 260px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      font-family: inherit;
+      background-color: var(--panel);
+      color: var(--text-main);
+      font-size: 14px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Buttons */
+    button {
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 10px;
+      padding: 10px 16px;
+      border: 1px solid var(--panel-border);
+      background-color: var(--panel);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    button:hover {
+      background-color: var(--chip);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background-color: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background-color: var(--chip);
+      border-color: var(--panel-border);
+    }
+
+    .btn-dark {
+      background-color: #1e293b;
+      color: #f8fafc;
+      border-color: #334155;
+    }
+
+    .btn-dark:hover {
+      background-color: #0f172a;
+    }
+
+    .btn-accent {
+      background-color: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+
+    .btn-danger {
+      background-color: var(--danger-soft);
+      border-color: var(--danger-border);
+      color: var(--danger);
+    }
+
+    .btn-soft {
+      background-color: var(--chip);
+    }
+
+    /* Dashboard: Vertical List Layout */
+    .device-list {
       display: flex;
       flex-direction: column;
+      gap: 16px;
     }
 
-    .card-header {
-      padding: 16px 18px 12px;
-      border-bottom: 1px solid #ece7db;
+    .device-list-row {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px 24px;
+      display: grid;
+      grid-template-columns: 2fr 1fr 2.5fr 2fr;
+      align-items: center;
+      gap: 24px;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .device-list-row:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .row-main-info {
       display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: flex-start;
+      align-items: center;
+      gap: 16px;
     }
 
-    .card-title { margin: 0; font-size: 1.15rem; }
-    .card-sub { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; }
+    .plant-avatar {
+      width: 48px;
+      height: 48px;
+      background-color: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .plant-meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .plant-name {
+      font-weight: 700;
+      font-size: 16px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .plant-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row-status {
+      display: flex;
+      align-items: center;
+    }
 
     .chip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 0.82rem;
+      border-radius: 99px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 700;
       border: 1px solid transparent;
       white-space: nowrap;
     }
-    .chip.online { color: var(--ok); background: #ebf8ef; border-color: #ccebd5; }
-    .chip.offline { color: var(--danger); background: #fff3f2; border-color: #ffd9d6; }
-    .chip.restarting { color: var(--warn); background: #fff7e8; border-color: #ffe3b3; }
 
-    .card-body { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+    .chip.online { color: var(--accent); background-color: var(--accent-soft); border-color: var(--accent-border); }
+    .chip.offline { color: var(--danger); background-color: var(--danger-soft); border-color: var(--danger-border); }
+    .chip.restarting { color: var(--warning); background-color: var(--warning-soft); border-color: var(--warning-border); }
 
-    .metric-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: currentColor;
     }
 
-    .metric {
-      background: #f7faf8;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px;
-      text-align: center;
-    }
-    .metric-label { display: block; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-    .metric-value { display: block; margin-top: 4px; font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .metric-value.missing { color: var(--muted); font-weight: 400; font-size: .95rem; }
-
-    .section-title {
-      margin: 0 0 8px;
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--muted);
+    .chip.online .status-dot {
+      animation: pulse 1.5s infinite;
     }
 
-    .schedule-form {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
+    @keyframes pulse {
+      0% { opacity: 0.3; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.1); }
+      100% { opacity: 0.3; transform: scale(0.9); }
     }
 
-    .schedule-form label {
+    .row-telemetry {
+      display: flex;
+      gap: 12px;
+    }
+
+    .telemetry-pill {
+      flex: 1;
+      padding: 8px;
+      border-radius: 10px;
+      background-color: var(--chip);
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      font-size: 0.82rem;
-      color: var(--muted);
+      align-items: center;
+      min-width: 65px;
     }
 
-    .schedule-form label.full { grid-column: 1 / -1; }
+    .pill-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
 
-    .schedule-form input,
-    .schedule-form select {
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
+    .pill-value {
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    /* Moisture Category colors */
+    .moisture-good {
+      background-color: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+    }
+    .moisture-dry {
+      background-color: var(--danger-soft);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
+    }
+    .moisture-wet {
+      background-color: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+    .moisture-missing {
+      opacity: 0.55;
+    }
+
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .relay-toggle-btn.active {
+      background-color: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent-border);
+    }
+
+    /* Dropdown Menus */
+    .dropdown-actions {
+      position: relative;
+      display: inline-block;
+    }
+
+    .dropdown-menu-content {
+      display: none;
+      position: absolute;
+      right: 0;
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      min-width: 170px;
+      box-shadow: var(--shadow-lg);
+      border-radius: 12px;
+      z-index: 100;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .dropdown-menu-content.show {
+      display: block;
+    }
+
+    .dropdown-menu-content a {
+      color: var(--text-main);
+      padding: 10px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background-color 0.2s;
+    }
+
+    .dropdown-menu-content a:hover {
+      background-color: var(--chip);
+    }
+
+    .dropdown-menu-content hr {
+      margin: 4px 0;
+      border: 0;
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .dropdown-menu-content a.danger-action {
+      color: var(--danger);
+    }
+
+    .dropdown-menu-content a.danger-action:hover {
+      background-color: var(--danger-soft);
+    }
+
+    /* Spaces Planner Layout */
+    .spaces-manager {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .room-selector-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .room-tab-btn {
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      border: 1px solid var(--panel-border);
+      background-color: var(--panel);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .room-tab-btn.active {
+      background-color: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .add-space-form {
+      display: flex;
+      gap: 8px;
+    }
+
+    .add-space-form input {
+      padding: 10px 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      background-color: var(--panel);
+      color: var(--text-main);
       font-family: inherit;
-      background: #fff;
+      font-size: 13px;
     }
 
-    .schedule-toggle {
+    .spaces-layout-container {
+      display: grid;
+      grid-template-columns: 3fr 1fr;
+      gap: 24px;
+    }
+
+    .canvas-wrapper {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .room-canvas {
+      position: relative;
+      width: 100%;
+      height: 520px;
+      background-color: #0b0f19;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 30px 30px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .canvas-grid-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+      background-size: 15px 15px;
+    }
+
+    .canvas-empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      padding: 40px;
+      pointer-events: none;
+    }
+
+    /* Plant marker on map */
+    .plant-pin {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      z-index: 10;
+      transition: transform 0.1s ease;
+      touch-action: none;
+    }
+
+    .plant-pin:active {
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.08);
+      z-index: 100;
+    }
+
+    .pin-avatar {
+      width: 48px;
+      height: 48px;
+      background-color: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: all 0.2s;
+    }
+
+    .plant-pin.online .pin-avatar {
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    .plant-pin.offline .pin-avatar {
+      border-color: #475569;
+      opacity: 0.85;
+    }
+
+    .pin-badge {
+      position: absolute;
+      bottom: 0px;
+      right: 0px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 800;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      text-align: center;
+      color: #fff;
+    }
+
+    /* Popover on map */
+    .pin-popover {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 12px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 240px;
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      box-shadow: var(--shadow-lg);
+      border-radius: 14px;
+      padding: 12px 14px;
+      z-index: 120;
+      cursor: default;
+    }
+
+    .pin-popover.open {
+      display: block;
+    }
+
+    .pin-popover::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 6px;
+      border-style: solid;
+      border-color: var(--panel) transparent transparent transparent;
+    }
+
+    .popover-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .popover-header h4 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-main);
+    }
+
+    .popover-body .species {
+      margin: 0 0 8px 0;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .popover-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .p-metric {
+      background-color: var(--chip);
+      border-radius: 8px;
+      padding: 4px;
+      text-align: center;
+    }
+
+    .p-metric .l {
+      display: block;
+      font-size: 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .p-metric .v {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .popover-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+    }
+
+    .popover-actions button {
+      font-size: 10px;
+      padding: 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .popover-actions .relay-on {
+      background-color: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent-border);
+    }
+
+    .unplaced-sidebar {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      height: 552px;
+    }
+
+    .unplaced-sidebar h3 {
+      margin: 0 0 14px 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .unplaced-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    .unplaced-item-card {
+      padding: 10px 12px;
+      background-color: var(--chip);
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .item-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .item-name {
+      font-size: 13px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .item-sn {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .empty-text {
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    /* Schedules tab layout */
+    .schedules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .schedule-card {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .schedule-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+      gap: 10px;
+    }
+
+    .schedule-card-header h3 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .schedule-card-header .sub {
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .schedule-status-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 99px;
+      background-color: var(--chip);
+      color: var(--text-muted);
+      border: 1px solid transparent;
+    }
+
+    .schedule-status-badge.active {
+      background-color: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent-border);
+    }
+
+    .form-row-checkbox {
+      margin-bottom: 14px;
+    }
+
+    .schedule-toggle-label {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 0.9rem;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .form-grid-fields {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .form-grid-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .form-grid-fields input,
+    .form-grid-fields select {
+      padding: 8px 10px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background-color: var(--panel);
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .form-grid-fields input:focus,
+    .form-grid-fields select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .save-schedule-btn {
+      width: 100%;
+    }
+
+    /* Master Calendar Grid */
+    .unified-calendar-section {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-title-wrapper {
+      margin-bottom: 20px;
+    }
+
+    .section-title-wrapper h3 {
+      margin: 0 0 6px 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .section-title-wrapper .subtitle {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 13px;
     }
 
     .calendar {
-      border: 1px solid var(--line);
-      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
       overflow: hidden;
-      background: #fafcf9;
+      background-color: var(--panel);
     }
 
     .calendar-head {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      background: #eef4ef;
-      border-bottom: 1px solid var(--line);
+      background-color: var(--chip);
+      border-bottom: 1px solid var(--panel-border);
     }
 
     .calendar-head span {
-      padding: 6px 4px;
+      padding: 10px 4px;
       text-align: center;
-      font-size: 0.72rem;
-      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 1px;
-      background: var(--line);
+      background-color: var(--panel-border);
     }
 
     .calendar-day {
-      min-height: 52px;
-      background: #fff;
-      padding: 4px;
-      font-size: 0.75rem;
-    }
-
-    .calendar-day.other { background: #f5f7f5; color: #9aa39c; }
-    .calendar-day.today { background: #f0faf7; box-shadow: inset 0 0 0 2px #b8e4dd; }
-    .calendar-day-num { font-weight: 600; margin-bottom: 2px; }
-
-    .calendar-event {
-      display: block;
-      margin-top: 2px;
-      padding: 1px 3px;
-      border-radius: 4px;
-      background: var(--accent-soft);
-      color: #0e5f58;
-      font-size: 0.65rem;
-      line-height: 1.2;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .calendar-event.weekly { background: #fff4dd; color: #7a5200; }
-
-    .history-list {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    .history-list li {
+      min-height: 130px;
+      background-color: var(--panel);
+      padding: 8px;
       display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 8px 10px;
-      border-bottom: 1px solid #ece7db;
-      font-size: 0.85rem;
-    }
-    .history-list li:last-child { border-bottom: none; }
-    .history-empty { padding: 10px; color: var(--muted); font-size: 0.85rem; text-align: center; }
-
-    .card-actions {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      flex-direction: column;
       gap: 6px;
     }
 
-    .card-actions button { font-size: 0.84rem; padding: 8px 10px; }
-
-    .relay-control {
-      grid-column: 1 / -1;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      font-weight: 600;
-      min-height: 40px;
+    .calendar-day.today {
+      background-color: var(--accent-soft);
+      box-shadow: inset 0 0 0 2px var(--accent-border);
     }
-    .relay-control.relay-on { background: var(--accent-soft); border-color: #bde7e2; color: #0e5f58; }
-    .relay-control.relay-off { background: #fff3f2; border-color: #ffd9d6; color: #8a1c13; }
-    .relay-dot { width: 9px; height: 9px; border-radius: 999px; background: currentColor; }
 
-    .empty-state {
-      background: var(--panel);
-      border: 1px dashed var(--line);
-      border-radius: 16px;
-      padding: 40px 20px;
-      text-align: center;
-      color: var(--muted);
+    .calendar-day-num {
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 2px;
+      color: var(--text-muted);
+    }
+
+    .calendar-day.today .calendar-day-num {
+      color: var(--accent);
+    }
+
+    .calendar-day-events {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      max-height: 95px;
+    }
+
+    .calendar-event {
+      display: block;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background-color: var(--chip);
+      color: var(--text-main);
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border: 1px solid var(--panel-border);
+    }
+
+    .calendar-event.weekly {
+      background-color: var(--warning-soft);
+      color: var(--warning);
+      border-color: var(--warning-border);
+    }
+
+    /* System & Diagnostics layout */
+    .system-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .system-card {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .system-card h3 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .system-card .sub {
+      margin: 4px 0 16px 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .health-indicators-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .health-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background-color: var(--chip);
+      border-radius: 10px;
+    }
+
+    .health-label {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .health-status-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 99px;
+    }
+
+    .health-status-badge.online {
+      background-color: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+    }
+
+    .health-status-badge.offline {
+      background-color: var(--danger-soft);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
+    }
+
+    .value-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .system-logs-section {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .system-logs-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      font-weight: 700;
     }
 
     .log {
-      margin-top: 16px;
-      padding: 12px;
-      background: #1d2b24;
+      margin: 0;
+      padding: 14px;
+      background: #0b0f19;
       color: #f6f8fa;
       border-radius: 10px;
       font-family: ui-monospace, Menlo, monospace;
-      font-size: 0.85rem;
-      min-height: 48px;
+      font-size: 12px;
+      min-height: 120px;
+      max-height: 250px;
+      overflow-y: auto;
       white-space: pre-wrap;
     }
 
-    .build-info { margin-top: 10px; text-align: right; font-size: 0.8rem; color: var(--muted); }
-
+    /* Modals & Popups styling */
     .modal {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(31,42,36,.45);
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
       z-index: 1000;
       align-items: center;
       justify-content: center;
+      padding: 16px;
     }
-    .modal.open { display: flex; }
+
+    .modal.open {
+      display: flex;
+    }
 
     .modal-content {
-      background: var(--panel);
-      border-radius: 16px;
-      padding: 24px;
-      max-width: 480px;
-      width: 90%;
-      border: 1px solid var(--line);
-      box-shadow: 0 20px 60px rgba(31,42,36,.2);
-    }
-    .modal h2 { margin: 0 0 16px; font-size: 1.35rem; }
-
-    .form-group { margin-bottom: 14px; }
-    .form-group label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--muted); }
-    .form-group input {
+      background-color: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 28px;
+      max-width: 520px;
       width: 100%;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fdfcf9;
-      font-family: inherit;
+      box-shadow: var(--shadow-lg);
+      color: var(--text-main);
+      animation: modalRise 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
-    .modal-actions button { flex: 1; padding: 10px; }
-    .modal-actions button.submit { background: #1d2b24; color: #fff; border-color: #1d2b24; }
+    @keyframes modalRise {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal h2 {
+      margin: 0 0 16px 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      background-color: var(--panel);
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid var(--panel-border);
+      background-color: var(--panel);
+      color: var(--text-main);
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .modal-actions button:hover {
+      background-color: var(--chip);
+    }
+
+    .modal-actions button.submit {
+      background-color: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .modal-actions button.submit:hover {
+      background-color: var(--accent-hover);
+    }
 
     .terminal-output, .details-json {
       margin: 0;
-      padding: 12px;
-      background: #111317;
+      padding: 16px;
+      background: #0b0f19;
       color: #e9edf3;
-      border-radius: 10px;
-      border: 1px solid #2a2f37;
-      min-height: 180px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      min-height: 200px;
       max-height: 280px;
       overflow: auto;
-      font-family: ui-monospace, Menlo, monospace;
-      font-size: 0.84rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
       white-space: pre-wrap;
     }
 
-    .terminal-meta { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; }
-    .terminal-dot { width: 10px; height: 10px; border-radius: 999px; background: #9ca3af; display: inline-block; }
-    .terminal-dot.online { background: #16a34a; }
-    .terminal-dot.offline { background: #dc2626; }
+    .terminal-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-    .terminal-controls, .terminal-input-row { display: flex; gap: 8px; margin: 10px 0; }
-    .terminal-input { flex: 1; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; font-family: ui-monospace, Menlo, monospace; }
+    .terminal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #64748b;
+      display: inline-block;
+    }
+
+    .terminal-dot.online {
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .terminal-dot.offline {
+      background-color: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+    }
+
+    .terminal-controls, .terminal-input-row {
+      display: flex;
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    .terminal-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      background-color: var(--panel);
+      color: var(--text-main);
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+    }
 
     .inline-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .inline-grid label { font-size: 0.9rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
-    .inline-grid input, .inline-grid select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; background: #fff; }
-
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
+      gap: 12px;
+      margin-top: 16px;
     }
 
-    @media (max-width: 720px) {
-      body { padding: 14px; }
-      .metric-row { grid-template-columns: 1fr; }
-      .schedule-form { grid-template-columns: 1fr; }
+    .inline-grid label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .inline-grid input, .inline-grid select {
+      padding: 10px;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      font-family: inherit;
+      background-color: var(--panel);
+      color: var(--text-main);
+      font-size: 13px;
+    }
+
+    .inline-grid input:focus, .inline-grid select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .empty-state {
+      background: var(--panel);
+      border: 1px dashed var(--panel-border);
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Mobile Responsive styling */
+    .mobile-header {
+      display: none;
+    }
+
+    .mobile-nav {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .app-layout {
+        flex-direction: column;
+      }
+      
+      .sidebar {
+        display: none;
+      }
+      
+      .mobile-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 24px;
+        background-color: var(--panel);
+        border-bottom: 1px solid var(--panel-border);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      
+      .mobile-header .brand {
+        margin-bottom: 0;
+      }
+      
+      .refresh-btn-mob {
+        border: none;
+        background: transparent;
+        font-size: 20px;
+        cursor: pointer;
+      }
+      
+      .app-content-panel {
+        padding: 20px;
+        padding-bottom: 96px;
+      }
+      
+      .device-list-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      
+      .row-actions {
+        justify-content: flex-start;
+      }
+      
+      .spaces-layout-container {
+        grid-template-columns: 1fr;
+      }
+
+      .unplaced-sidebar {
+        height: auto;
+      }
+      
+      .system-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .mobile-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 64px;
+        background-color: var(--panel);
+        border-top: 1px solid var(--panel-border);
+        justify-content: space-around;
+        align-items: center;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+        z-index: 200;
+      }
+      
+      .mobile-nav-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 6px;
+      }
+      
+      .mobile-nav-btn.active {
+        color: var(--accent);
+      }
+      
+      .mobile-nav-btn .icon {
+        font-size: 18px;
+      }
     }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <h1>Huerta Bewässerung</h1>
-      <p class="subtitle">Pflanzen, Klima und Bewässerungsplan auf einen Blick.</p>
-    </section>
-
-    <section class="topbar">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <span id="deviceCount" class="badge">Lade Geräte…</span>
-        <span id="cosmosStatus" class="health-badge">
+  <div class="app-layout">
+    <!-- Desktop Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo-icon">🌿</span>
+        <span class="logo-text">Huerta</span>
+      </div>
+      
+      <nav class="nav-links">
+        <button class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
+          <span class="icon">📊</span> Dashboard
+        </button>
+        <button class="nav-btn" data-tab="spaces" onclick="switchTab('spaces')">
+          <span class="icon">🗺️</span> Raum-Planer
+        </button>
+        <button class="nav-btn" data-tab="schedules" onclick="switchTab('schedules')">
+          <span class="icon">📅</span> Pläne & Kalender
+        </button>
+        <button class="nav-btn" data-tab="system" onclick="switchTab('system')">
+          <span class="icon">⚙️</span> System & Diagnose
+        </button>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div id="deviceCount" class="badge">Lade Geräte...</div>
+        <div id="cosmosStatus" class="health-badge">
           <span id="cosmosDot" class="health-dot"></span>
-          <span id="cosmosText">Cosmos: prüfe…</span>
-        </span>
-        <input id="deviceSearch" class="search-input" type="search" placeholder="Geräte suchen" />
+          <span id="cosmosText">Cosmos: prüfen...</span>
+        </div>
+        <button class="theme-toggle-btn" onclick="toggleTheme()" type="button">
+          🌓 Dark / Light wechseln
+        </button>
+        <div class="build-info">Build: <span id="buildInfoText">lädt...</span></div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button id="reloadBtn" type="button">Aktualisieren</button>
-        <button id="onboardBtn" type="button" class="btn-dark">ESP hinzufügen</button>
+    </aside>
+    
+    <!-- Main Content Area -->
+    <main class="main-area">
+      <header class="mobile-header">
+        <div class="brand">
+          <span class="logo-icon">🌿</span>
+          <span class="logo-text">Huerta</span>
+        </div>
+        <button class="refresh-btn-mob" onclick="loadDevices()" type="button">🔄</button>
+      </header>
+      
+      <div id="appContent" class="app-content-panel">
+        <div class="empty-state">Lade Huerta-System...</div>
       </div>
-    </section>
+      
+      <!-- Mobile Bottom Navigation -->
+      <nav class="mobile-nav">
+        <button class="mobile-nav-btn active" data-tab-mob="dashboard" onclick="switchTab('dashboard')">
+          <span class="icon">📊</span>
+          <span>Dashboard</span>
+        </button>
+        <button class="mobile-nav-btn" data-tab-mob="spaces" onclick="switchTab('spaces')">
+          <span class="icon">🗺️</span>
+          <span>Spaces</span>
+        </button>
+        <button class="mobile-nav-btn" data-tab-mob="schedules" onclick="switchTab('schedules')">
+          <span class="icon">📅</span>
+          <span>Pläne</span>
+        </button>
+        <button class="mobile-nav-btn" data-tab-mob="system" onclick="switchTab('system')">
+          <span class="icon">⚙️</span>
+          <span>System</span>
+        </button>
+      </nav>
+    </main>
+  </div>
 
-    <section id="deviceGrid" class="device-grid">
-      <div class="empty-state">Lade Daten…</div>
-    </section>
-
-    <pre id="log" class="log">Bereit.</pre>
-    <div class="build-info">Build: <span id="buildInfoText">lädt…</span></div>
-  </main>
-
+  <!-- Modals (Persistent in DOM) -->
   <div id="onboardModal" class="modal">
     <div class="modal-content">
       <h2>ESP32 hinzufügen</h2>
@@ -490,14 +1645,46 @@
   </div>
 
   <script>
-    const deviceGrid = document.getElementById("deviceGrid");
+    // Theme Management
+    const savedTheme = localStorage.getItem('huerta_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('huerta_theme', next);
+    }
+
+    // Tab Management
+    let activeTab = "dashboard";
+
+    function switchTab(tabName) {
+      activeTab = tabName;
+      
+      // Update active classes on buttons
+      document.querySelectorAll(".nav-btn").forEach(btn => {
+        if (btn.getAttribute("data-tab") === tabName) btn.classList.add("active");
+        else btn.classList.remove("active");
+      });
+      
+      document.querySelectorAll(".mobile-nav-btn").forEach(btn => {
+        if (btn.getAttribute("data-tab-mob") === tabName) btn.classList.add("active");
+        else btn.classList.remove("active");
+      });
+      
+      renderActiveTab();
+    }
+
+    // Global DOM references
+    const appContent = document.getElementById("appContent");
     const countBadge = document.getElementById("deviceCount");
-    const deviceSearchInput = document.getElementById("deviceSearch");
     const cosmosDot = document.getElementById("cosmosDot");
     const cosmosText = document.getElementById("cosmosText");
     const buildInfoText = document.getElementById("buildInfoText");
-    const reloadBtn = document.getElementById("reloadBtn");
-    const logBox = document.getElementById("log");
+    
+    // Modals
+    const onboardModal = document.getElementById("onboardModal");
     const terminalModal = document.getElementById("terminalModal");
     const terminalTitle = document.getElementById("terminalTitle");
     const terminalDot = document.getElementById("terminalDot");
@@ -526,6 +1713,30 @@
     const wakeBtn = document.getElementById("wakeBtn");
     const sleepBtn = document.getElementById("sleepBtn");
 
+    // Room Map Planner state
+    let activeRoom = "";
+    let dragPin = null;
+    let openPopoverId = null;
+
+    // Search state
+    let searchQuery = "";
+
+    // Logs state
+    const logs = [];
+
+    function log(message) {
+      const timeStr = new Date().toLocaleTimeString("de-DE");
+      const entry = `[${timeStr}] ${message}`;
+      logs.push(entry);
+      if (logs.length > 50) logs.shift();
+      
+      const logBox = document.getElementById("log");
+      if (logBox) {
+        logBox.textContent = logs.join("\n");
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+    }
+
     const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
     const WEEKDAY_MAP = {
       monday: 1, montag: 1, mo: 1,
@@ -542,24 +1753,9 @@
     let terminalPollId = null;
     let cachedDevices = [];
 
-    function log(message) {
-      logBox.textContent = `[${new Date().toLocaleTimeString("de-DE")}] ${message}`;
-    }
-
     function statusChip(status) {
       const safe = String(status || "unknown");
-      return `<span class="chip ${safe}">${safe === "online" ? "Online" : safe === "offline" ? "Offline" : safe === "restarting" ? "Neustart" : safe}</span>`;
-    }
-
-    function formatMetric(value, unit) {
-      if (value === null || value === undefined || value === "") {
-        return `<span class="metric-value missing">–</span>`;
-      }
-      const num = Number(value);
-      if (Number.isNaN(num)) {
-        return `<span class="metric-value missing">–</span>`;
-      }
-      return `<span class="metric-value">${num.toFixed(num % 1 ? 1 : 0)}${unit}</span>`;
+      return `<span class="chip ${safe}"><span class="status-dot"></span>${safe === "online" ? "Online" : safe === "offline" ? "Offline" : safe === "restarting" ? "Neustart" : safe}</span>`;
     }
 
     function formatRelativeTime(iso) {
@@ -640,7 +1836,22 @@
       }).slice(0, 40);
     }
 
-    function renderCalendar(events) {
+    function renderUnifiedCalendar() {
+      const events = [];
+      for (const device of cachedDevices) {
+        const schedule = device.watering_schedule || {};
+        const plant = device.plant_context || {};
+        const deviceEvents = buildWateringEvents(schedule, 7);
+        for (const ev of deviceEvents) {
+          events.push({
+            ...ev,
+            deviceName: plant.plant_name || device.name || device.id,
+            deviceId: device.id
+          });
+        }
+      }
+      events.sort((a, b) => a.at - b.at);
+
       const now = new Date();
       const start = new Date(now);
       const mondayOffset = (start.getDay() + 6) % 7;
@@ -665,12 +1876,14 @@
       const cells = days.map((day) => {
         const isToday = day.toDateString() === now.toDateString();
         const dayEvents = eventsByDay.get(day.toDateString()) || [];
-        const eventHtml = dayEvents.slice(0, 3).map((ev) =>
-          `<span class="calendar-event ${ev.type === "weekly" ? "weekly" : ""}">${ev.at.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · ${ev.label}</span>`
+        const eventHtml = dayEvents.slice(0, 4).map((ev) =>
+          `<span class="calendar-event ${ev.type === "weekly" ? "weekly" : ""}" title="${ev.deviceName}: ${ev.label}">
+            <strong>${ev.at.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</strong> ${ev.deviceName} (${ev.label.split(' · ').pop()})
+          </span>`
         ).join("");
         return `<div class="calendar-day ${isToday ? "today" : ""}">
           <div class="calendar-day-num">${day.getDate()}</div>
-          ${eventHtml}
+          <div class="calendar-day-events">${eventHtml || '<span style="font-size:9px;color:var(--text-muted);font-style:italic;">Keine Pläne</span>'}</div>
         </div>`;
       }).join("");
 
@@ -678,114 +1891,42 @@
     }
 
     function renderHistory(history) {
-      const items = Array.isArray(history) ? history.slice(0, 5) : [];
+      const items = Array.isArray(history) ? history.slice(0, 3) : [];
       if (items.length === 0) {
-        return `<div class="history-empty">Noch keine Bewässerungszyklen</div>`;
+        return `<div style="font-size:11px;color:var(--text-muted);">Noch keine Zyklen</div>`;
       }
-      return `<ul class="history-list">${items.map((entry) => {
+      return `<ul style="margin:0;padding:0;list-style:none;font-size:11px;line-height:1.4;">${items.map((entry) => {
         const when = formatRelativeTime(entry.started_at_utc);
         const dur = entry.duration_sec != null ? `${entry.duration_sec}s` : "?";
         const src = entry.source === "manual" ? "Manuell" : entry.source === "schedule" ? "Plan" : "Auto";
-        return `<li><span>${when} · ${dur}</span><span>${src}</span></li>`;
+        return `<li style="display:flex;justify-content:space-between;border-bottom:1px solid var(--panel-border);padding:3px 0;"><span>${when} · ${dur}</span><span>${src}</span></li>`;
       }).join("")}</ul>`;
     }
 
-    function renderDeviceCard(device) {
-      const status = device.connected ? "online" : (device.status === "restarting" ? "restarting" : "offline");
-      const plant = device.plant_context || {};
-      const schedule = device.watering_schedule || {};
-      const telemetry = device.telemetry || {};
-      const history = device.irrigation_history || [];
-      const events = buildWateringEvents(schedule, 7);
+    // Dynamic Render views based on activeTab
+    function renderActiveTab() {
+      if (activeTab === "spaces" && dragPin !== null) {
+        return; // Skip rendering during drag to prevent interruption
+      }
+      
+      if (activeTab === "dashboard") {
+        renderDashboard(appContent);
+      } else if (activeTab === "spaces") {
+        renderSpaces(appContent);
+      } else if (activeTab === "schedules") {
+        renderSchedules(appContent);
+      } else if (activeTab === "system") {
+        renderSystem(appContent);
+      }
+    }
 
-      const temp = plant.temperature_c ?? telemetry.temperature_c;
-      const humidity = plant.humidity_pct ?? telemetry.humidity_pct;
-      const soil = plant.soil_moisture_pct ?? telemetry.soil_moisture_pct;
-
-      return `
-        <article class="device-card" data-device-id="${device.id}">
-          <header class="card-header">
-            <div>
-              <h2 class="card-title">${plant.plant_name || device.name || "Unbenannte Pflanze"}</h2>
-              <p class="card-sub">${plant.room || "Unbekannter Raum"} · ${device.firmware || "–"}</p>
-            </div>
-            ${statusChip(status)}
-          </header>
-          <div class="card-body">
-            <div>
-              <h3 class="section-title">Klima</h3>
-              <div class="metric-row">
-                <div class="metric"><span class="metric-label">Raumtemp.</span>${formatMetric(temp, "°C")}</div>
-                <div class="metric"><span class="metric-label">Luftfeuchte</span>${formatMetric(humidity, "%")}</div>
-                <div class="metric"><span class="metric-label">Topf</span>${formatMetric(soil, "%")}</div>
-              </div>
-            </div>
-
-            <div>
-              <h3 class="section-title">Bewässerungsplan</h3>
-              <form class="schedule-form" data-schedule-form="${device.id}">
-                <label class="schedule-toggle full">
-                  <input type="checkbox" data-field="enabled" ${schedule.enabled ? "checked" : ""} />
-                  Plan aktiv
-                </label>
-                <label>Intervall (Std.)
-                  <input type="number" min="0" step="1" data-field="interval_hours" value="${schedule.interval_hours || 2}" />
-                </label>
-                <label>Dauer (Sek.)
-                  <input type="number" min="1" step="1" data-field="duration_sec" value="${schedule.duration_sec || 21}" />
-                </label>
-                <label>Wochentag
-                  <select data-field="day">
-                    ${["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((d) => {
-                      const labels = { "": "–", Monday: "Montag", Tuesday: "Dienstag", Wednesday: "Mittwoch", Thursday: "Donnerstag", Friday: "Freitag", Saturday: "Samstag", Sunday: "Sonntag" };
-                      const selected = (schedule.day || "Monday") === d ? "selected" : "";
-                      return `<option value="${d}" ${selected}>${labels[d]}</option>`;
-                    }).join("")}
-                  </select>
-                </label>
-                <label>Uhrzeit
-                  <input type="time" data-field="start_time" value="${schedule.start_time || "14:00"}" />
-                </label>
-                <label>Raum
-                  <input type="text" data-field="room" value="${plant.room || ""}" placeholder="z.B. Küche" />
-                </label>
-                <label>Topf-Feuchte (%)
-                  <input type="number" min="0" max="100" step="1" data-field="soil_moisture_pct" value="${soil ?? ""}" placeholder="Manuell" />
-                </label>
-                <button type="button" class="btn-accent full" data-save-schedule="${device.id}">Plan speichern</button>
-              </form>
-              <p class="card-sub" style="margin-top:8px;">${schedule.summary || "Kein Plan"}</p>
-            </div>
-
-            <div>
-              <h3 class="section-title">Kalender (diese Woche)</h3>
-              ${renderCalendar(events)}
-            </div>
-
-            <div>
-              <h3 class="section-title">Letzte Zyklen</h3>
-              ${renderHistory(history)}
-            </div>
-
-            <div class="card-actions">
-              <button class="relay-control ${device.relay_debug_state === "on" ? "relay-on" : "relay-off"}" type="button" data-action="relay_toggle" data-device="${device.id}">
-                <span class="relay-dot"></span>
-                <span>Relais ${device.relay_debug_state === "on" ? "AN" : "AUS"}</span>
-              </button>
-              <button type="button" class="btn-accent" data-action="water_now" data-device="${device.id}">Jetzt gießen</button>
-              <button type="button" data-terminal-open="true" data-device="${device.id}">Terminal</button>
-              <button type="button" class="btn-soft" data-device-details="true" data-device="${device.id}">Details</button>
-              <button type="button" class="btn-soft" data-action="identify" data-device="${device.id}">Identifizieren</button>
-              <button type="button" class="btn-soft" data-action="restart" data-device="${device.id}">Neustart</button>
-              <button type="button" class="btn-danger" data-action="delete_device" data-device="${device.id}">Löschen</button>
-            </div>
-          </div>
-        </article>
-      `;
+    function onSearchInput(event) {
+      searchQuery = event.target.value;
+      renderActiveTab();
     }
 
     function getFilteredDevices(devices) {
-      const query = (deviceSearchInput?.value || "").trim().toLowerCase();
+      const query = searchQuery.trim().toLowerCase();
       if (!query) return devices;
       return devices.filter((device) => {
         const plant = device.plant_context || {};
@@ -794,11 +1935,617 @@
       });
     }
 
-    function redirectToMicrosoftLogin() {
-      const returnUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      window.location.href = `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnUrl)}`;
+    // Rendering Tab 1: Dashboard
+    function renderDashboard(container) {
+      const devices = getFilteredDevices(cachedDevices);
+      
+      let html = `
+        <div class="tab-header">
+          <div>
+            <h2>Pflanzen-Dashboard</h2>
+            <p class="subtitle">Übersicht aller Bewässerungsgeräte und Sensorwerte in einer Liste.</p>
+          </div>
+          <div class="search-bar-wrapper">
+            <input id="deviceSearch" class="search-input" type="search" placeholder="Geräte suchen..." value="${searchQuery}" oninput="onSearchInput(event)" />
+          </div>
+        </div>
+      `;
+      
+      if (devices.length === 0) {
+        html += `<div class="empty-state">Keine Geräte gefunden.</div>`;
+        container.innerHTML = html;
+        return;
+      }
+      
+      html += `<div class="device-list">`;
+      
+      for (const device of devices) {
+        const status = device.connected ? "online" : (device.status === "restarting" ? "restarting" : "offline");
+        const plant = device.plant_context || {};
+        const telemetry = device.telemetry || {};
+        
+        const temp = plant.temperature_c ?? telemetry.temperature_c;
+        const humidity = plant.humidity_pct ?? telemetry.humidity_pct;
+        const soil = plant.soil_moisture_pct ?? telemetry.soil_moisture_pct;
+        
+        let moistureClass = "moisture-good";
+        if (soil === null || soil === undefined) moistureClass = "moisture-missing";
+        else if (soil < 30) moistureClass = "moisture-dry";
+        else if (soil > 75) moistureClass = "moisture-wet";
+        
+        html += `
+          <div class="device-list-row" data-device-row-id="${device.id}">
+            <div class="row-main-info">
+              <div class="plant-avatar">🌱</div>
+              <div class="plant-meta">
+                <span class="plant-name">${plant.plant_name || device.name || "Unbenannte Pflanze"}</span>
+                <span class="plant-sub">${plant.room || "Unbekannter Raum"} · Firmware: ${device.firmware || "–"}</span>
+              </div>
+            </div>
+            
+            <div class="row-status">
+              ${statusChip(status)}
+            </div>
+            
+            <div class="row-telemetry">
+              <div class="telemetry-pill ${moistureClass}">
+                <span class="pill-label">Boden</span>
+                <span class="pill-value">${soil != null ? soil.toFixed(0) + "%" : "–"}</span>
+              </div>
+              <div class="telemetry-pill">
+                <span class="pill-label">Temp</span>
+                <span class="pill-value">${temp != null ? temp.toFixed(1) + "°C" : "–"}</span>
+              </div>
+              <div class="telemetry-pill">
+                <span class="pill-label">Luft</span>
+                <span class="pill-value">${humidity != null ? humidity.toFixed(0) + "%" : "–"}</span>
+              </div>
+            </div>
+            
+            <div class="row-actions">
+              <button class="action-btn relay-toggle-btn ${device.relay_debug_state === "on" ? "active" : ""}" 
+                      type="button" data-action="relay_toggle" data-device="${device.id}">
+                Relais ${device.relay_debug_state === "on" ? "AN" : "AUS"}
+              </button>
+              
+              <button class="action-btn btn-primary" type="button" data-action="water_now" data-device="${device.id}">
+                Jetzt gießen
+              </button>
+              
+              <div class="dropdown-actions">
+                <button class="action-btn btn-secondary" onclick="toggleDropdownMenu(event, '${device.id}')">•••</button>
+                <div id="dropdown-${device.id}" class="dropdown-menu-content">
+                  <a href="#" onclick="openDeviceDetails('${device.id}'); return false;">Gerätedetails</a>
+                  <a href="#" onclick="openDeviceTerminal('${device.id}'); return false;">ESP Terminal</a>
+                  <a href="#" data-action="identify" data-device="${device.id}">Identifizieren</a>
+                  <a href="#" data-action="restart" data-device="${device.id}">Neustart</a>
+                  <hr />
+                  <a href="#" class="danger-action" data-action="delete_device" data-device="${device.id}">Löschen</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
+      html += `</div>`;
+      container.innerHTML = html;
     }
 
+    // Rendering Tab 2: Spaces (Raum-Planer)
+    function renderSpaces(container) {
+      const deviceRooms = cachedDevices.map(d => d.plant_context?.room).filter(Boolean);
+      const rooms = [...new Set(["Terrasse", "Schlafzimmer", "Küche", "Wohnzimmer", ...deviceRooms])];
+      
+      if (!activeRoom || !rooms.includes(activeRoom)) {
+        activeRoom = rooms[0] || "Terrasse";
+      }
+      
+      const roomDevices = cachedDevices.filter(d => (d.plant_context?.room || "Unbekannter Raum") === activeRoom);
+      const placedDevices = roomDevices.filter(d => d.plant_context?.room_x != null && d.plant_context?.room_y != null);
+      const unplacedDevices = roomDevices.filter(d => d.plant_context?.room_x == null || d.plant_context?.room_y == null);
+      
+      let html = `
+        <div class="tab-header">
+          <div>
+            <h2>Raum-Planer</h2>
+            <p class="subtitle">Ziehe die Symbole, um deine Pflanzen grafisch im Raum anzuordnen.</p>
+          </div>
+        </div>
+        
+        <div class="spaces-manager">
+          <div class="room-selector-tabs">
+            ${rooms.map(room => `
+              <button class="room-tab-btn ${room === activeRoom ? 'active' : ''}" onclick="selectActiveRoom('${room}')">
+                ${room}
+              </button>
+            `).join('')}
+          </div>
+          <div class="add-space-form">
+            <input type="text" id="newRoomInput" placeholder="Neuer Raum Name..." />
+            <button class="btn-dark" onclick="addNewRoom()">Hinzufügen</button>
+          </div>
+        </div>
+        
+        <div class="spaces-layout-container">
+          <div class="canvas-wrapper">
+            <div class="room-canvas" id="roomCanvas">
+              <div class="canvas-grid-overlay"></div>
+              
+              <!-- Placed Devices -->
+              ${placedDevices.map(device => {
+                const plant = device.plant_context || {};
+                const telemetry = device.telemetry || {};
+                const status = device.connected ? "online" : (device.status === "restarting" ? "restarting" : "offline");
+                const soil = plant.soil_moisture_pct ?? telemetry.soil_moisture_pct;
+                
+                let moistureClass = "moisture-good";
+                if (soil === null || soil === undefined) moistureClass = "moisture-missing";
+                else if (soil < 30) moistureClass = "moisture-dry";
+                else if (soil > 75) moistureClass = "moisture-wet";
+                
+                const x = plant.room_x ?? 50;
+                const y = plant.room_y ?? 50;
+                const isPopoverOpen = openPopoverId === device.id ? "open" : "";
+                
+                return `
+                  <div class="plant-pin ${status}" 
+                       style="left: ${x}%; top: ${y}%;" 
+                       data-device-id="${device.id}"
+                       onpointerdown="onPinPointerDown(event, '${device.id}')"
+                       onclick="togglePinPopover(event, '${device.id}')">
+                    <div class="pin-avatar">🌱</div>
+                    <div class="pin-badge ${moistureClass}">${soil != null ? soil.toFixed(0) + "%" : "–"}</div>
+                    
+                    <div class="pin-popover ${isPopoverOpen}" id="popover-${device.id}" onclick="event.stopPropagation()">
+                      <div class="popover-header">
+                        <h4>${plant.plant_name || device.name || "Unbenannt"}</h4>
+                        <span class="chip ${status}"><span class="status-dot"></span></span>
+                      </div>
+                      <div class="popover-body">
+                        <p class="species">${plant.plant_species || 'Zimmerpflanze'}</p>
+                        <div class="popover-metrics">
+                          <div class="p-metric">
+                            <span class="l">Boden</span>
+                            <span class="v">${soil != null ? soil.toFixed(0) + "%" : "–"}</span>
+                          </div>
+                          <div class="p-metric">
+                            <span class="l">Temp</span>
+                            <span class="v">${(plant.temperature_c ?? telemetry.temperature_c) != null ? (plant.temperature_c ?? telemetry.temperature_c).toFixed(1) + "°" : "–"}</span>
+                          </div>
+                          <div class="p-metric">
+                            <span class="l">Luft</span>
+                            <span class="v">${(plant.humidity_pct ?? telemetry.humidity_pct) != null ? (plant.humidity_pct ?? telemetry.humidity_pct).toFixed(0) + "%" : "–"}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="popover-actions">
+                        <button class="btn-primary" type="button" data-action="water_now" data-device="${device.id}">Gießen</button>
+                        <button class="${device.relay_debug_state === 'on' ? 'relay-on' : ''}" type="button" data-action="relay_toggle" data-device="${device.id}">Relais</button>
+                        <button class="btn-danger" onclick="unplaceDevice('${device.id}')">Entfernen</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+              
+              ${placedDevices.length === 0 ? `
+                <div class="canvas-empty-state">
+                  <span>Keine Pflanzen auf dem Plan.<br>Ziehe oder platziere Geräte aus der Seitenleiste hierhin.</span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          
+          <!-- Sidebar for unplaced devices in this room -->
+          <div class="unplaced-sidebar">
+            <h3>Nicht platziert in "${activeRoom}"</h3>
+            <div class="unplaced-list">
+              ${unplacedDevices.map(device => {
+                const plant = device.plant_context || {};
+                return `
+                  <div class="unplaced-item-card">
+                    <div class="item-info">
+                      <span class="item-name">${plant.plant_name || device.name || "Unbenannt"}</span>
+                      <span class="item-sn">SN: ${device.id}</span>
+                    </div>
+                    <button class="btn-primary" style="font-size:11px;padding:6px 10px;" onclick="placeDeviceInCenter('${device.id}')">Platzieren</button>
+                  </div>
+                `;
+              }).join('')}
+              ${unplacedDevices.length === 0 ? `
+                <p class="empty-text">Alle Pflanzen sind platziert.</p>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+      container.innerHTML = html;
+    }
+
+    // Rendering Tab 3: Schedules & Calendar
+    function renderSchedules(container) {
+      let html = `
+        <div class="tab-header">
+          <div>
+            <h2>Bewässerungspläne & Kalender</h2>
+            <p class="subtitle">Steuere die Bewässerungszeiten einzelner Pflanzen und sehe geplante Zyklen im Master-Kalender.</p>
+          </div>
+        </div>
+        
+        <div class="schedules-grid">
+      `;
+      
+      for (const device of cachedDevices) {
+        const plant = device.plant_context || {};
+        const schedule = device.watering_schedule || {};
+        const telemetry = device.telemetry || {};
+        const soil = plant.soil_moisture_pct ?? telemetry.soil_moisture_pct;
+        
+        html += `
+          <div class="schedule-card" data-device-id="${device.id}">
+            <div class="schedule-card-header">
+              <div>
+                <h3>${plant.plant_name || device.name || "Unbenannte Pflanze"}</h3>
+                <p class="sub">${plant.room || "Unbekannter Raum"} · SN: <code>${device.id}</code></p>
+              </div>
+              <span class="schedule-status-badge ${schedule.enabled ? 'active' : ''}">
+                ${schedule.enabled ? 'Aktiv' : 'Inaktiv'}
+              </span>
+            </div>
+            
+            <form class="schedule-form" data-schedule-form="${device.id}">
+              <div class="form-row-checkbox">
+                <label class="schedule-toggle-label">
+                  <input type="checkbox" data-field="enabled" ${schedule.enabled ? "checked" : ""} />
+                  Bewässerungsplan aktivieren
+                </label>
+              </div>
+              
+              <div class="form-grid-fields">
+                <label>Intervall (Stunden)
+                  <input type="number" min="0" step="1" data-field="interval_hours" value="${schedule.interval_hours || 0}" />
+                </label>
+                <label>Dauer (Sekunden)
+                  <input type="number" min="1" step="1" data-field="duration_sec" value="${schedule.duration_sec || 21}" />
+                </label>
+                <label>Wochentag
+                  <select data-field="day">
+                    ${["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((d) => {
+                      const labels = { "": "–", Monday: "Montag", Tuesday: "Dienstag", Wednesday: "Mittwoch", Thursday: "Donnerstag", Friday: "Freitag", Saturday: "Samstag", Sunday: "Sonntag" };
+                      const selected = (schedule.day || "") === d ? "selected" : "";
+                      return `<option value="${d}" ${selected}>${labels[d]}</option>`;
+                    }).join("")}
+                  </select>
+                </label>
+                <label>Startzeit
+                  <input type="time" data-field="start_time" value="${schedule.start_time || "14:00"}" />
+                </label>
+                <label>Raum
+                  <input type="text" data-field="room" value="${plant.room || ""}" placeholder="z.B. Küche" />
+                </label>
+                <label>Bodenfeuchte Soll (%)
+                  <input type="number" min="0" max="100" step="1" data-field="soil_moisture_pct" value="${soil ?? ""}" placeholder="Auto" />
+                </label>
+              </div>
+              
+              <button type="button" class="btn-primary save-schedule-btn" data-save-schedule="${device.id}">
+                Plan speichern
+              </button>
+            </form>
+          </div>
+        `;
+      }
+      
+      if (cachedDevices.length === 0) {
+        html += `<div class="empty-state">Keine Geräte registriert.</div>`;
+      }
+      
+      html += `
+        </div>
+        
+        <div class="unified-calendar-section">
+          <div class="section-title-wrapper">
+            <h3>Wöchentlicher Master-Bewässerungskalender</h3>
+            <p class="subtitle">Vereinte Wochenansicht der geplanten Zyklen für alle Pflanzen.</p>
+          </div>
+          ${renderUnifiedCalendar()}
+        </div>
+      `;
+      
+      container.innerHTML = html;
+    }
+
+    // Rendering Tab 4: System & Diagnose
+    function renderSystem(container) {
+      let html = `
+        <div class="tab-header">
+          <div>
+            <h2>System & Diagnose</h2>
+            <p class="subtitle">Überwache den Server-Status, füge neue Steuergeräte hinzu und debugge Verbindungen.</p>
+          </div>
+          <button type="button" class="btn-primary" onclick="openOnboardModal()">ESP registrieren</button>
+        </div>
+        
+        <div class="system-grid">
+          <!-- Diagnostics List -->
+          <div class="system-card" style="grid-column: 1 / -1;">
+            <h3>Registrierte Controller & Direkt-Aktionen</h3>
+            <p class="sub" style="margin-bottom:12px;">ESP32 Controller direkt verwalten und Konfigurationen oder Terminals öffnen.</p>
+            <div class="device-list">
+              ${cachedDevices.map(device => {
+                const plant = device.plant_context || {};
+                const status = device.connected ? "online" : (device.status === "restarting" ? "restarting" : "offline");
+                return `
+                  <div class="device-list-row" style="padding: 12px 20px; grid-template-columns: 2fr 1fr 2fr;">
+                    <div class="row-main-info">
+                      <div class="plant-avatar" style="width:36px;height:36px;font-size:18px;">💾</div>
+                      <div class="plant-meta">
+                        <span class="plant-name" style="font-size:14px;">${plant.plant_name || device.name || "Unbenannt"}</span>
+                        <span class="plant-sub" style="font-size:11px;">SN: <code>${device.id}</code></span>
+                      </div>
+                    </div>
+                    <div class="row-status">${statusChip(status)}</div>
+                    <div class="row-actions" style="gap:6px;">
+                      <button class="btn-soft" style="padding:6px 12px;font-size:12px;" onclick="openDeviceDetails('${device.id}')">Details</button>
+                      <button class="btn-soft" style="padding:6px 12px;font-size:12px;" onclick="openDeviceTerminal('${device.id}')">Terminal</button>
+                      <button class="btn-danger" style="padding:6px 12px;font-size:12px;" data-action="delete_device" data-device="${device.id}">Löschen</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+              ${cachedDevices.length === 0 ? '<p class="empty-text">Keine Geräte registriert.</p>' : ''}
+            </div>
+          </div>
+
+          <!-- Server Health -->
+          <div class="system-card">
+            <h3>Server & Azure Cosmos DB</h3>
+            <p class="sub">Backend-Verbindungsstatus und Informationen zur Buildversion.</p>
+            <div class="health-indicators-list">
+              <div class="health-item">
+                <span class="health-label">Azure Cosmos DB</span>
+                <span id="systemCosmosStatus" class="health-status-badge">Prüfen...</span>
+              </div>
+              <div class="health-item">
+                <span class="health-label">Build-Info</span>
+                <span id="systemBuildInfo" class="value-text">Lade...</span>
+              </div>
+            </div>
+            <button type="button" class="btn-secondary" style="width:100%" onclick="loadDevices()">Aktualisieren</button>
+          </div>
+
+          <!-- System Logs -->
+          <div class="system-card" style="display:flex; flex-direction:column;">
+            <h3>System-Log</h3>
+            <p class="sub">Logs der Frontend-Aktionen und Ereignisse im Live-Betrieb.</p>
+            <pre id="log" class="log" style="flex-grow:1;"></pre>
+          </div>
+        </div>
+      `;
+      container.innerHTML = html;
+      
+      // Update logs content immediately
+      const logBox = document.getElementById("log");
+      if (logBox) logBox.textContent = logs.join("\n");
+
+      // Update indicators
+      updateSystemHealthUI();
+    }
+
+    function updateSystemHealthUI() {
+      const cosmosStatus = document.getElementById("systemCosmosStatus");
+      const buildInfo = document.getElementById("systemBuildInfo");
+      
+      if (!cosmosStatus) return;
+      
+      const isUp = cosmosDot.classList.contains("up");
+      cosmosStatus.className = `health-status-badge ${isUp ? 'online' : 'offline'}`;
+      cosmosStatus.textContent = cosmosText.textContent;
+      buildInfo.textContent = buildInfoText.textContent;
+    }
+
+    // Spaces Helper Functions
+    function selectActiveRoom(room) {
+      activeRoom = room;
+      renderActiveTab();
+    }
+
+    function addNewRoom() {
+      const input = document.getElementById("newRoomInput");
+      const newRoom = input.value.trim();
+      if (!newRoom) return;
+      
+      let rooms = JSON.parse(localStorage.getItem("huerta_rooms") || '["Terrasse", "Schlafzimmer", "Küche", "Wohnzimmer"]');
+      if (!rooms.includes(newRoom)) {
+        rooms.push(newRoom);
+        localStorage.setItem("huerta_rooms", JSON.stringify(rooms));
+      }
+      
+      activeRoom = newRoom;
+      input.value = "";
+      renderActiveTab();
+      log(`Raum '${newRoom}' hinzugefügt.`);
+    }
+
+    async function updateDevicePosition(deviceId, x, y) {
+      try {
+        const response = await fetch(`/devices/${deviceId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plant_profile: {
+              room_x: parseFloat(x.toFixed(1)),
+              room_y: parseFloat(y.toFixed(1))
+            }
+          })
+        });
+        const data = await parseApiResponse(response);
+        if (!response.ok) throw new Error(data.message || "Position konnte nicht gespeichert werden");
+        
+        log(`Position für ${deviceId} gespeichert: (${x.toFixed(1)}%, ${y.toFixed(1)}%)`);
+        
+        const dev = cachedDevices.find(d => d.id === deviceId);
+        if (dev) {
+          if (!dev.plant_context) dev.plant_context = {};
+          dev.plant_context.room_x = x;
+          dev.plant_context.room_y = y;
+        }
+      } catch (error) {
+        log(`Fehler beim Speichern der Position: ${String(error)}`);
+      }
+    }
+
+    async function unplaceDevice(deviceId) {
+      try {
+        const response = await fetch(`/devices/${deviceId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plant_profile: {
+              room_x: null,
+              room_y: null
+            }
+          })
+        });
+        const data = await parseApiResponse(response);
+        if (!response.ok) throw new Error(data.message || "Position konnte nicht entfernt werden");
+        
+        log(`Position für ${deviceId} entfernt.`);
+        
+        const dev = cachedDevices.find(d => d.id === deviceId);
+        if (dev) {
+          if (!dev.plant_context) dev.plant_context = {};
+          dev.plant_context.room_x = null;
+          dev.plant_context.room_y = null;
+        }
+        renderActiveTab();
+      } catch (error) {
+        log(`Fehler beim Entfernen der Position: ${String(error)}`);
+      }
+    }
+
+    async function placeDeviceInCenter(deviceId) {
+      await updateDevicePosition(deviceId, 50, 50);
+      renderActiveTab();
+    }
+
+    // Modal Triggers from Tabs
+    function openOnboardModal() {
+      onboardModal.classList.add("open");
+      document.getElementById("deviceId").focus();
+    }
+
+    function openDeviceDetails(deviceId) {
+      openDetails(deviceId);
+    }
+
+    function openDeviceTerminal(deviceId) {
+      openTerminal(deviceId);
+    }
+
+    // Popover Toggles on Map
+    function togglePinPopover(event, deviceId) {
+      if (event.defaultPrevented) return;
+      event.stopPropagation();
+      
+      const popover = document.getElementById(`popover-${deviceId}`);
+      const isOpen = popover.classList.contains("open");
+      
+      document.querySelectorAll(".pin-popover").forEach(p => p.classList.remove("open"));
+      
+      if (!isOpen) {
+        popover.classList.add("open");
+        openPopoverId = deviceId;
+      } else {
+        openPopoverId = null;
+      }
+    }
+
+    // Dropdown Toggles in rows
+    function toggleDropdownMenu(event, deviceId) {
+      event.stopPropagation();
+      const dropdown = document.getElementById(`dropdown-${deviceId}`);
+      const isShown = dropdown.classList.contains("show");
+      
+      document.querySelectorAll(".dropdown-menu-content").forEach(d => d.classList.remove("show"));
+      
+      if (!isShown) {
+        dropdown.classList.add("show");
+      }
+    }
+
+    // Global document clicks close popups
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".pin-popover").forEach(p => p.classList.remove("open"));
+      openPopoverId = null;
+      
+      document.querySelectorAll(".dropdown-menu-content").forEach(d => d.classList.remove("show"));
+    });
+
+    // Pointer-based Canvas Drag & Drop implementation (works for Mouse + Touch!)
+    function onPinPointerDown(e, deviceId) {
+      // Prevent popover clicking from triggering drag
+      if (e.target.closest('.pin-popover')) return;
+      
+      e.preventDefault();
+      dragPin = e.currentTarget;
+      
+      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      
+      dragPin.dataset.startX = clientX;
+      dragPin.dataset.startY = clientY;
+      dragPin.dataset.origX = parseFloat(dragPin.style.left) || 50;
+      dragPin.dataset.origY = parseFloat(dragPin.style.top) || 50;
+      
+      document.addEventListener('pointermove', onPinPointerMove);
+      document.addEventListener('pointerup', onPinPointerUp);
+      dragPin.setPointerCapture(e.pointerId);
+    }
+
+    function onPinPointerMove(e) {
+      if (!dragPin) return;
+      
+      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      
+      const dx = clientX - parseFloat(dragPin.dataset.startX);
+      const dy = clientY - parseFloat(dragPin.dataset.startY);
+      
+      const canvasRect = document.getElementById("roomCanvas").getBoundingClientRect();
+      
+      const dxPct = (dx / canvasRect.width) * 100;
+      const dyPct = (dy / canvasRect.height) * 100;
+      
+      let newX = parseFloat(dragPin.dataset.origX) + dxPct;
+      let newY = parseFloat(dragPin.dataset.origY) + dyPct;
+      
+      newX = Math.max(0, Math.min(100, newX));
+      newY = Math.max(0, Math.min(100, newY));
+      
+      dragPin.style.left = `${newX.toFixed(1)}%`;
+      dragPin.style.top = `${newY.toFixed(1)}%`;
+    }
+
+    async function onPinPointerUp(e) {
+      if (!dragPin) return;
+      
+      dragPin.releasePointerCapture(e.pointerId);
+      document.removeEventListener('pointermove', onPinPointerMove);
+      document.removeEventListener('pointerup', onPinPointerUp);
+      
+      const deviceId = dragPin.dataset.deviceId;
+      const x = parseFloat(dragPin.style.left);
+      const y = parseFloat(dragPin.style.top);
+      
+      dragPin = null;
+      
+      // Auto-save the new position to Cosmos
+      await updateDevicePosition(deviceId, x, y);
+    }
+
+    // Original API Operations
     async function parseApiResponse(response) {
       let data = {};
       try { data = await response.json(); } catch (_) {}
@@ -810,11 +2557,17 @@
       return data;
     }
 
+    function redirectToMicrosoftLogin() {
+      const returnUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.location.href = `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnUrl)}`;
+    }
+
     async function refreshCosmosIndicator() {
       try {
         const response = await fetch("/health");
         const data = await response.json();
         buildInfoText.textContent = (typeof data.build === "string" && data.build.trim()) ? data.build : "unbekannt";
+        
         if (response.ok && data.cosmos_connected === true) {
           cosmosDot.className = "health-dot up";
           cosmosText.textContent = "Cosmos: verbunden";
@@ -831,28 +2584,23 @@
 
     async function loadDevices() {
       await refreshCosmosIndicator();
-      deviceGrid.innerHTML = `<div class="empty-state">Lade Daten…</div>`;
-
+      
       try {
         const response = await fetch("/devices");
         const data = await parseApiResponse(response);
         if (!response.ok) throw new Error(data.message || "API-Fehler");
 
         cachedDevices = Array.isArray(data.devices) ? data.devices : [];
-        const devices = getFilteredDevices(cachedDevices);
+        
+        // Update device counts globally
         countBadge.textContent = `${cachedDevices.length} Gerät${cachedDevices.length === 1 ? "" : "e"}`;
 
-        if (devices.length === 0) {
-          deviceGrid.innerHTML = `<div class="empty-state">Keine Geräte gefunden.</div>`;
-          return;
-        }
-
-        deviceGrid.innerHTML = devices.map(renderDeviceCard).join("");
+        renderActiveTab();
         log("Dashboard aktualisiert.");
       } catch (error) {
-        deviceGrid.innerHTML = `<div class="empty-state">Fehler: ${String(error)}</div>`;
+        appContent.innerHTML = `<div class="empty-state">Fehler beim Laden: ${String(error)}</div>`;
         countBadge.textContent = "Fehler";
-        log(`Fehler: ${String(error)}`);
+        log(`Fehler beim Laden: ${String(error)}`);
       }
     }
 
@@ -1013,6 +2761,7 @@
       else if (action === "identify") body = { action: "identify", duration_sec: 15 };
       else if (action === "relay_toggle") body = { action };
       else if (action === "water_now") {
+        // Find configuration duration from corresponding form or fall back to default
         const form = document.querySelector(`[data-schedule-form="${deviceId}"]`);
         const duration = Number(form?.querySelector('[data-field="duration_sec"]')?.value || 21);
         body = { action: "water_now", duration_sec: duration };
@@ -1126,56 +2875,34 @@
       }
     }
 
-    deviceGrid.addEventListener("click", async (event) => {
+    // App Content Interaction Delegates (for Dynamically Rendered Elements)
+    appContent.addEventListener("click", async (event) => {
       const saveBtn = event.target.closest("[data-save-schedule]");
       if (saveBtn) {
         await saveSchedule(saveBtn.getAttribute("data-save-schedule"));
         return;
       }
 
-      const terminalBtn = event.target.closest("[data-terminal-open]");
-      if (terminalBtn) {
-        await openTerminal(terminalBtn.getAttribute("data-device"));
-        return;
-      }
-
-      const detailsBtn = event.target.closest("[data-device-details]");
-      if (detailsBtn) {
-        await openDetails(detailsBtn.getAttribute("data-device"));
-        return;
-      }
-
       const btn = event.target.closest("[data-action]");
       if (!btn) return;
+      
       const deviceId = btn.getAttribute("data-device");
       const action = btn.getAttribute("data-action");
-      if (deviceId && action) await sendAction(deviceId, action);
+      if (deviceId && action) {
+        // Prevent map popovers from closing when triggering actions inside them
+        event.stopPropagation();
+        await sendAction(deviceId, action);
+      }
     });
 
-    reloadBtn.addEventListener("click", loadDevices);
-    deviceSearchInput.addEventListener("input", loadDevices);
-    terminalCloseBtn.addEventListener("click", closeTerminal);
-    detailsCloseBtn.addEventListener("click", () => detailsModal.classList.remove("open"));
-    saveConfigBtn.addEventListener("click", saveConfig);
-    uploadFirmwareBtn.addEventListener("click", uploadFirmware);
-    rollbackFirmwareBtn.addEventListener("click", rollbackFirmware);
-    terminalSendBtn.addEventListener("click", sendTerminalCommand);
-    terminalInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendTerminalCommand(); } });
-    wakeBtn.addEventListener("click", requestWake);
-    sleepBtn.addEventListener("click", requestSleep);
-    terminalModal.addEventListener("click", (e) => { if (e.target === terminalModal) closeTerminal(); });
-    detailsModal.addEventListener("click", (e) => { if (e.target === detailsModal) detailsModal.classList.remove("open"); });
-
-    const modal = document.getElementById("onboardModal");
-    const onboardBtn = document.getElementById("onboardBtn");
-    const cancelBtn = document.getElementById("cancelBtn");
+    // Form onboarding (modal)
     const onboardForm = document.getElementById("onboardForm");
     const deviceIdInput = document.getElementById("deviceId");
     const deviceNameInput = document.getElementById("deviceName");
+    const cancelBtn = document.getElementById("cancelBtn");
 
-    onboardBtn.addEventListener("click", () => { modal.classList.add("open"); deviceIdInput.focus(); });
-    cancelBtn.addEventListener("click", () => { modal.classList.remove("open"); onboardForm.reset(); });
-    modal.addEventListener("click", (e) => { if (e.target === modal) { modal.classList.remove("open"); onboardForm.reset(); } });
+    cancelBtn.addEventListener("click", () => { onboardModal.classList.remove("open"); onboardForm.reset(); });
+    onboardModal.addEventListener("click", (e) => { if (e.target === onboardModal) { onboardModal.classList.remove("open"); onboardForm.reset(); } });
 
     onboardForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1191,7 +2918,7 @@
         const data = await parseApiResponse(response);
         if (!response.ok) throw new Error(data.message || "Anlegen fehlgeschlagen");
         log(`Gerät ${serial} angelegt.`);
-        modal.classList.remove("open");
+        onboardModal.classList.remove("open");
         onboardForm.reset();
         await loadDevices();
       } catch (error) {
@@ -1199,6 +2926,20 @@
       }
     });
 
+    // Static event listeners
+    terminalCloseBtn.addEventListener("click", closeTerminal);
+    detailsCloseBtn.addEventListener("click", () => detailsModal.classList.remove("open"));
+    saveConfigBtn.addEventListener("click", saveConfig);
+    uploadFirmwareBtn.addEventListener("click", uploadFirmware);
+    rollbackFirmwareBtn.addEventListener("click", rollbackFirmware);
+    terminalSendBtn.addEventListener("click", sendTerminalCommand);
+    terminalInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendTerminalCommand(); } });
+    wakeBtn.addEventListener("click", requestWake);
+    sleepBtn.addEventListener("click", requestSleep);
+    terminalModal.addEventListener("click", (e) => { if (e.target === terminalModal) closeTerminal(); });
+    detailsModal.addEventListener("click", (e) => { if (e.target === detailsModal) detailsModal.classList.remove("open"); });
+
+    // Initialize application
     loadDevices();
     setInterval(loadDevices, 10000);
   </script>

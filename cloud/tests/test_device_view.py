@@ -74,6 +74,8 @@ class DeviceViewTests(unittest.TestCase):
                 "temperature_c": 24,
                 "humidity_pct": 62,
                 "soil_moisture_pct": 41,
+                "room_x": 12.5,
+                "room_y": 80.0,
             }
         }
         context = _get_plant_context(item)
@@ -81,6 +83,8 @@ class DeviceViewTests(unittest.TestCase):
         self.assertEqual(context["room"], "Kitchen")
         self.assertEqual(context["temperature_c"], 24)
         self.assertEqual(context["soil_moisture_pct"], 41)
+        self.assertEqual(context["room_x"], 12.5)
+        self.assertEqual(context["room_y"], 80.0)
 
     def test_plant_context_prefers_live_telemetry(self):
         item = {
@@ -100,12 +104,14 @@ class DeviceViewTests(unittest.TestCase):
             "day": "Monday",
             "start_time": "14:00",
         })
-        profile = _merge_plant_profile(item, {"room": "Kitchen", "soil_moisture_pct": 55})
+        profile = _merge_plant_profile(item, {"room": "Kitchen", "soil_moisture_pct": 55, "room_x": 42.0, "room_y": 24.1})
         self.assertTrue(schedule["enabled"])
         self.assertEqual(schedule["interval_hours"], 2)
         self.assertEqual(schedule["summary"], "Every 2h for 21s; Monday at 14:00")
         self.assertEqual(profile["room"], "Kitchen")
         self.assertEqual(profile["soil_moisture_pct"], 55)
+        self.assertEqual(profile["room_x"], 42.0)
+        self.assertEqual(profile["room_y"], 24.1)
 
     def test_append_irrigation_cycle_keeps_recent_entries(self):
         item = {"irrigation_history": [{"started_at_utc": "2024-01-01T00:00:00Z", "duration_sec": 10}]}

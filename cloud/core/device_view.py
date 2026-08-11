@@ -155,7 +155,7 @@ def _merge_plant_profile(item: dict, profile_payload: dict) -> dict:
     for key in ("plant_name", "plant_species", "room", "notes"):
         if key in profile_payload and isinstance(profile_payload[key], str):
             updates[key] = profile_payload[key].strip()
-    for key in ("temperature_c", "humidity_pct", "soil_moisture_pct"):
+    for key in ("temperature_c", "humidity_pct", "soil_moisture_pct", "room_x", "room_y"):
         if key in profile_payload:
             value = profile_payload[key]
             if value is None or value == "":
@@ -236,6 +236,8 @@ def _get_plant_context(item: dict) -> dict:
         "humidity_pct": _climate_value("humidity_pct", "humidity_pct"),
         "soil_moisture_pct": _climate_value("soil_moisture_pct", "soil_moisture_pct"),
         "notes": profile.get("notes", ""),
+        "room_x": profile.get("room_x"),
+        "room_y": profile.get("room_y"),
     }
 
 
